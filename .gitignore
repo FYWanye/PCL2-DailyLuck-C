@@ -13,3 +13,4 @@ obj/
 # 临时文件
 *.tmp
 *.log
+artifacts/
