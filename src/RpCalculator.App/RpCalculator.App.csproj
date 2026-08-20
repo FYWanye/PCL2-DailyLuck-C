@@ -9,6 +9,12 @@
     <RootNamespace>RpCalculator.App</RootNamespace>
     <AssemblyName>RpCalculator.App</AssemblyName>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
+    <!--
+      声明目标 RID，使 `dotnet restore`（不带 -r）也会生成 net8.0-windows/win-x64 的
+      assets target。否则 CI 里 restore 不带 RID、随后 publish/build 带 -r win-x64 时，
+      会报 NETSDK1047（project.assets.json 没有 win-x64 target）。
+    -->
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
   </PropertyGroup>
 
   <ItemGroup>
