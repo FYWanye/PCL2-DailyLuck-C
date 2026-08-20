@@ -46,6 +46,109 @@ dotnet run --project src/RpCalculator.App/RpCalculator.App.csproj -c Release
 dotnet test RpCalculator.sln -c Release
 ```
 
+## 发布（单文件 EXE / MSI 安装包）
+
+> 由于 WPF 不支持裁剪（`PublishTrimmed=true` 在 .NET 8 WPF 项目里直接报错），
+> 自包含 .NET 8 桌面应用最小体积约 65MB。**单文件无法做到 20MB 以内**，
+> 因此按约定 `≥50MB` 跳过单文件强制要求，改为生成 MSI 安装包。
+> 我们仍同时发布单文件 EXE 作为副产物。
+
+### 产物
+
+| 文件 | 大小 | 说明 |
+|------|------|------|
+| `artifacts\publish-singlefile\RpCalculator.App.exe` | ~68 MB | 自包含单文件 EXE，运行时自动解压到临时目录。适合拷贝即用。 |
+| `artifacts\RpCalculator-Setup.msi` | ~52 MB | WiX 4.0.4 MSI 安装包，桌面 + 开始菜单快捷方式，图标使用 `app.ico`。 |
+
+### 一键发布
+
+```cmd
+publish.cmd
+```
+
+脚本自动完成：
+
+1. 把 `C:\Users\Lenovo\Desktop\6.png` 转成 16/32/48/64/128/256 多分辨率 ICO（`Assets\app.ico`）；
+2. 发布单文件 EXE（`PublishSingleFile=true` + `EnableCompressionInSingleFile=true` + `IncludeNativeLibrariesForSelfExtract=true`）；
+3. 发布自包含多文件目录（`PublishSingleFile=false`），作为 MSI 内容源；
+4. 生成 WiX 4 源（`installer\installer.wxs` + `.wxl`）并调用 `wix build` 输出 MSI。
+
+> **注意**：项目路径如果包含 `#`，WiX 会把路径当 URI 解析失败。
+> `publish.cmd` 会自动检测并把项目复制到 `%TEMP%\rpbuild_clean` 再构建，
+> 最后把产物拷回原 `artifacts/`。
+
+### 前置依赖
+
+```bash
+# 安装 WiX 4 工具链（一次性）
+dotnet tool install wix --version 4.0.4
+dotnet wix extension add WixToolset.UI.wixext/4.0.4
+
+# 图标转换需要 Python + Pillow（项目里用 venv 装）
+python -m venv C:\Users\Lenovo\.workbuddy\binaries\python\envs\default
+C:\Users\Lenovo\.workbuddy\binaries\python\envs\default\Scripts\pip install Pillow
+```
+
+### 手动发布（与 `publish.cmd` 内部步骤一致）
+
+```bash
+# 1) 转换图标（仅当 PNG 更新时）
+python .workbuddy\scripts\convert_icon.py
+
+# 2) 单文件 EXE
+dotnet publish src\RpCalculator.App\RpCalculator.App.csproj -c Release -r win-x64 ^
+    --self-contained true -p:PublishSingleFile=true ^
+    -p:IncludeNativeLibrariesForSelfExtract=true ^
+    -p:EnableCompressionInSingleFile=true ^
+    -p:DebugType=embedded -p:InvariantGlobalization=true ^
+    -o artifacts\publish-singlefile
+
+# 3) 自包含多文件目录
+dotnet publish src\RpCalculator.App\RpCalculator.App.csproj -c Release -r win-x64 ^
+    --self-contained true -p:PublishSingleFile=false ^
+    -p:DebugType=embedded -p:InvariantGlobalization=true ^
+    -o artifacts\publish-folder
+
+# 4) 生成 WiX 源 + 构建 MSI
+python .workbuddy\scripts\generate_wix.py
+dotnet wix build -b artifacts\publish-folder -b . -arch x64 ^
+    -ext WixToolset.UI.wixext -o artifacts\RpCalculator-Setup.msi ^
+    installer\installer.wxs -loc installer\installer.wxl
+```
+
+## 应用图标
+
+- 源图：`C:\Users\Lenovo\Desktop\6.png`（96×96 RGBA）。
+- 自动转换：`Assets\app.ico`（16/32/48/64/128/256 多分辨率）。
+- 设置位置：
+  - `RpCalculator.App.csproj` 的 `<ApplicationIcon>` → 嵌入为 EXE 图标资源（资源管理器、任务栏、Alt-Tab）；
+  - `MainWindow.xaml` 的 `Icon="Assets\app.ico"` → 运行时窗口图标；
+  - 自定义标题栏左侧 `<Image Source="Assets\app.ico">` → 标题栏小图标。
+- MSI：快捷方式使用同一个 `Assets\app.ico`。
+
+如果 AI 环境无法读取 PNG 源图，请用以下命令手动生成：
+```bash
+python .workbuddy\scripts\convert_icon.py
+```
+
+## 原始计算（独立验算）
+
+UI 新增“原始计算”卡片，按 Python 参考算法逐日重算，结果用于核对主扫描器。
+算法与 `src\RpCalculator.Core\RawVerifier.cs` 严格等价：
+
+- 字符串直接拼接 `rid + year + doy` 与 `rid + year + doy + day`；
+- 不复用哈希状态，每次对完整字符串跑 `stable_hash`；
+- 64 位有符号 long，移位/异或/加法全部 `unchecked`，不抛 `OverflowException`；
+- `abs(h1/3 + h2/3) % 527527 >= 510927` 整数判断 100 分；
+- `long.MinValue` 绝对值用 ulong 承载，避免 `Math.Abs` 异常；
+- 计算放在 `Task.Run` 后台线程，UI 不卡；
+- 日期格式严格 `yyyy-MM-dd`；
+- 点击“填入最佳”自动从主扫描器当前选中结果复制识别码与窗口参数，便于对比。
+
+测试覆盖：`tests\RpCalculator.Core.Tests\RawVerifierTests.cs` 同时调用
+`RawVerifier.CheckId` 与 `RpScanner.ScanWithDates`，断言最大间隔、100 分日期
+数量与列表完全一致（多个识别码与窗口）。
+
 ## 持续集成（GitHub Actions）
 
 仓库内置 `.github/workflows/build-release.yml` 自动构建工作流：

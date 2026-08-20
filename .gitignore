@@ -10,6 +10,9 @@ obj/
 # WorkBuddy 工作区数据（不纳入版本控制）
 .workbuddy/
 
+# WiX 扩展缓存
+.wix/
+
 # 临时文件
 *.tmp
 *.log

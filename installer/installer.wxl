@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<WixLocalization Culture="zh-CN" xmlns="http://wixtoolset.org/schemas/v4/wxl">
+  <String Value="已安装更高版本，无法降级。" Id="DowngradeErrorMessage" />
+  <String Value="今日人品间隔分析器 主程序" Id="FeatureMainTitle" />
+</WixLocalization>

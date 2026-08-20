@@ -50,6 +50,17 @@ public sealed class MainViewModel : ObservableObject
     private bool _hasResult;
     private TopKResult? _selectedResult;
 
+    // 原始计算（独立验算）相关状态。
+    private string _rawIdInput = string.Empty;
+    private string _rawDaysText = "1780";
+    private DateTime _rawStartDate = DateTime.Today;
+    private bool _rawBusy;
+    private string _rawStatusText = "输入识别码并点击“原始计算”以独立验算。";
+    private string _rawResultSummary = string.Empty;
+    private string _rawMaxGapText = "—";
+    private string _rawHundredCountText = "—";
+    private readonly ObservableCollection<string> _rawHundredDates = new();
+
     private CancellationTokenSource? _cts;
 
     public MainViewModel()
@@ -65,10 +76,13 @@ public sealed class MainViewModel : ObservableObject
         BrowseFileCommand = new RelayCommand(_ => BrowseFile());
         ToggleThemeCommand = new RelayCommand(_ => ThemeManager.Toggle());
         CopyResultCommand = new AsyncRelayCommand(_ => CopyResultAsync(), _ => HasResult && !IsBusy);
+        RawComputeCommand = new AsyncRelayCommand(_ => RawComputeAsync(), _ => !RawBusy && !IsBusy);
+        FillRawFromBestCommand = new RelayCommand(_ => FillRawFromBest(), _ => SelectedResult is not null && !RawBusy && !IsBusy);
     }
 
     public ObservableCollection<string> HundredDates => _hundredDates;
     public ObservableCollection<TopKResult> TopResults => _topResults;
+    public ObservableCollection<string> RawHundredDates => _rawHundredDates;
 
     public IReadOnlyList<ModeOption> Modes { get; }
 
@@ -185,6 +199,8 @@ public sealed class MainViewModel : ObservableObject
                 StartCommand.RaiseCanExecuteChanged();
                 CancelCommand.RaiseCanExecuteChanged();
                 CopyResultCommand.RaiseCanExecuteChanged();
+                RawComputeCommand.RaiseCanExecuteChanged();
+                FillRawFromBestCommand.RaiseCanExecuteChanged();
             }
         }
     }
@@ -282,6 +298,7 @@ public sealed class MainViewModel : ObservableObject
             if (SetProperty(ref _selectedResult, value))
             {
                 UpdateSelectedResultDetail();
+                FillRawFromBestCommand.RaiseCanExecuteChanged();
             }
         }
     }
@@ -291,6 +308,170 @@ public sealed class MainViewModel : ObservableObject
     public RelayCommand BrowseFileCommand { get; }
     public RelayCommand ToggleThemeCommand { get; }
     public AsyncRelayCommand CopyResultCommand { get; }
+    public AsyncRelayCommand RawComputeCommand { get; }
+    public RelayCommand FillRawFromBestCommand { get; }
+
+    // ==================== 原始计算（独立验算） ====================
+
+    /// <summary>待验算的识别码（用户可手动输入，也可点击“填入最佳”从主结果复制）。</summary>
+    public string RawIdInput
+    {
+        get => _rawIdInput;
+        set => SetProperty(ref _rawIdInput, value);
+    }
+
+    /// <summary>原始计算窗口天数文本框。</summary>
+    public string RawDaysText
+    {
+        get => _rawDaysText;
+        set => SetProperty(ref _rawDaysText, value);
+    }
+
+    /// <summary>原始计算起始日期。</summary>
+    public DateTime RawStartDate
+    {
+        get => _rawStartDate;
+        set => SetProperty(ref _rawStartDate, value);
+    }
+
+    public bool RawBusy
+    {
+        get => _rawBusy;
+        private set
+        {
+            if (SetProperty(ref _rawBusy, value))
+            {
+                RawComputeCommand.RaiseCanExecuteChanged();
+                FillRawFromBestCommand.RaiseCanExecuteChanged();
+            }
+        }
+    }
+
+    public string RawStatusText
+    {
+        get => _rawStatusText;
+        private set => SetProperty(ref _rawStatusText, value);
+    }
+
+    public string RawResultSummary
+    {
+        get => _rawResultSummary;
+        private set => SetProperty(ref _rawResultSummary, value);
+    }
+
+    public string RawMaxGapText
+    {
+        get => _rawMaxGapText;
+        private set => SetProperty(ref _rawMaxGapText, value);
+    }
+
+    public string RawHundredCountText
+    {
+        get => _rawHundredCountText;
+        private set => SetProperty(ref _rawHundredCountText, value);
+    }
+
+    private async Task RawComputeAsync()
+    {
+        if (RawBusy || IsBusy)
+        {
+            return;
+        }
+
+        var idText = (RawIdInput ?? string.Empty).Trim();
+        if (idText.Length == 0)
+        {
+            RawStatusText = "请先输入要验算的识别码。";
+            return;
+        }
+
+        // 规范化识别码：去除短横线、统一大写，并按 4-4-4-4 输出。
+        // 若用户输入了首字符为 '0' 的识别码也允许——验算功能不应阻拦边界用例。
+        string canonicalId;
+        try
+        {
+            canonicalId = CanonicalizeForRawVerify(idText);
+        }
+        catch (ArgumentException ex)
+        {
+            RawStatusText = ex.Message;
+            return;
+        }
+
+        if (!int.TryParse(RawDaysText, out var days) || days <= 0 || days > MaxWindowDays)
+        {
+            RawStatusText = $"窗口天数必须介于 1 和 {MaxWindowDays:N0} 之间。";
+            return;
+        }
+
+        var startDate = RawStartDate.Date;
+
+        RawBusy = true;
+        RawStatusText = "正在按原始算法逐日验算…";
+        RawResultSummary = string.Empty;
+        RawMaxGapText = "—";
+        RawHundredCountText = "—";
+        _rawHundredDates.Clear();
+
+        // 故意把整个原始计算放到线程池：它的实现刻意没有做任何优化，
+        // 对长窗口（数万天）会跑得比主扫描器慢很多，UI 线程必须保持响应。
+        var result = await Task.Run(() => RawVerifier.CheckId(canonicalId, startDate, days))
+            .ConfigureAwait(true);
+
+        RawResultSummary = $"识别码：{result.Id}";
+        RawMaxGapText = result.MaxGap.ToString("N0");
+        RawHundredCountText = result.HundredCount.ToString("N0");
+        foreach (var d in result.HundredDates)
+        {
+            _rawHundredDates.Add(d);
+        }
+        RawStatusText = $"原始计算完成。窗口 {days:N0} 天内出现 100 分 {result.HundredCount:N0} 次，最大间隔 {result.MaxGap:N0} 天。";
+        RawBusy = false;
+    }
+
+    private void FillRawFromBest()
+    {
+        var best = SelectedResult;
+        if (best is null)
+        {
+            return;
+        }
+
+        // 自动填入当前选中的最佳识别码，并沿用主界面的窗口参数，
+        // 便于用户直接对比主扫描器与原始计算的结果。
+        RawIdInput = best.Id;
+        RawStartDate = StartDate;
+        if (int.TryParse(DaysText, out var d) && d > 0)
+        {
+            RawDaysText = DaysText;
+        }
+        RawStatusText = $"已从主结果填入：{best.Id}。点击“原始计算”开始验算。";
+    }
+
+    /// <summary>
+    /// 原始计算用的轻量规范化：去除短横线、转为大写、要求 16 位十六进制。
+    /// 与 <see cref="IdFormat.TryNormalize"/> 不同，这里**不**强制首字符非 '0'，
+    /// 因为原始计算是验算工具，边界用例（如 "0000-0000-000C-159C"）也必须能跑。
+    /// </summary>
+    private static string CanonicalizeForRawVerify(string raw)
+    {
+        var hex = raw.Replace("-", string.Empty, StringComparison.Ordinal).ToUpperInvariant();
+        if (hex.Length != IdFormat.HexLength)
+        {
+            throw new ArgumentException($"识别码长度必须为 16 位十六进制字符（去除短横线后），当前长度 {hex.Length}。");
+        }
+
+        foreach (var c in hex)
+        {
+            var ok = (c >= '0' && c <= '9') || (c >= 'A' && c <= 'F');
+            if (!ok)
+            {
+                throw new ArgumentException("识别码只能包含 0-9 / A-F 十六进制字符。");
+            }
+        }
+
+        return IdFormat.Format(hex);
+    }
 
     private async Task StartAsync()
     {

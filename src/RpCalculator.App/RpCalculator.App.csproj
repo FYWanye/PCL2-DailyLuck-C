@@ -8,10 +8,43 @@
     <Nullable>enable</Nullable>
     <RootNamespace>RpCalculator.App</RootNamespace>
     <AssemblyName>RpCalculator.App</AssemblyName>
+    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\RpCalculator.Core\RpCalculator.Core.csproj" />
   </ItemGroup>
+
+  <!--
+    应用图标：作为 WPF 资源嵌入到程序集，使 XAML 中
+    Icon="Assets\app.ico" 与 Image Source="Assets\app.ico" 都能用 pack URI 解析。
+    同时由 <ApplicationIcon> 嵌入到 EXE 的 Win32 图标资源（资源管理器/任务栏可见）。
+  -->
+  <ItemGroup>
+    <Resource Include="Assets\app.ico" />
+  </ItemGroup>
+
+  <!--
+    发布体积优化：
+    1) 默认启用 PublishSingleFile + EnableCompressionInSingleFile，单文件 + 压缩；
+    2) PublishTrimmed 默认 false：WPF 反射较多，开启后容易出现运行时 MissingMethodException；
+       若评估项目用不到 XAML 资源反射的动态加载，可改为 true 并验证。
+    3) SelfContained = true 避免用户机器需要装 .NET 桌面运行时；
+    4) 显式排除 FSharp.Core 等本项目用不到的依赖，最大化压缩效果。
+    5) DebugType=embedded 让 PDB 嵌入到 DLL 中而不是单独输出，进一步减小目录体积。
+  -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <PublishSingleFile Condition="'$(PublishSingleFile)' == ''">true</PublishSingleFile>
+    <SelfContained Condition="'$(SelfContained)' == ''">true</SelfContained>
+    <PublishTrimmed Condition="'$(PublishTrimmed)' == ''">false</PublishTrimmed>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <DebugType Condition="'$(DebugType)' == ''">embedded</DebugType>
+    <!--
+      注：不能启用 InvariantGlobalization=true——WPF 数据绑定要求系统语言文化的卫星程序集存在
+      （系统默认 en-US 在 Invariant 模式下会找不到，Binding 会抛 InvalidOperationException）。
+      这只会让 EXE 增大 ~10KB，可以接受。
+    -->
+  </PropertyGroup>
 
 </Project>

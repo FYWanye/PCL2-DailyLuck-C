@@ -1,0 +1,683 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+
+  <!--
+    今日人品间隔分析器 安装包（WiX 4）
+    - 自包含发布：所有 .NET / WPF 运行时已嵌入，安装时无需目标机器预装 .NET
+    - 递归打包所有 culture 子目录（WPF 数据绑定依赖）
+    - 安装目录：%ProgramFiles%\RpCalculator\今日人品间隔分析器
+    - 桌面 + 开始菜单快捷方式，使用 app.ico
+  -->
+  <Package Name="今日人品间隔分析器"
+           Version="1.0.0.0"
+           Manufacturer="RpCalculator"
+           UpgradeCode="{5E5B9565-48C5-4D94-B133-BAF67CAFBA77}">
+
+    <MajorUpgrade AllowSameVersionUpgrades="yes"
+                  DowngradeErrorMessage="!(loc.DowngradeErrorMessage)" />
+
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+
+    <ui:WixUI Id="WixUI_Minimal" />
+
+    <Feature Id="MainFeature" Title="!(loc.FeatureMainTitle)" Level="1">
+      <ComponentGroupRef Id="AppFiles" />
+      <ComponentGroupRef Id="CG_Sub_cs" />
+      <ComponentGroupRef Id="CG_Sub_de" />
+      <ComponentGroupRef Id="CG_Sub_es" />
+      <ComponentGroupRef Id="CG_Sub_fr" />
+      <ComponentGroupRef Id="CG_Sub_it" />
+      <ComponentGroupRef Id="CG_Sub_ja" />
+      <ComponentGroupRef Id="CG_Sub_ko" />
+      <ComponentGroupRef Id="CG_Sub_pl" />
+      <ComponentGroupRef Id="CG_Sub_pt_BR" />
+      <ComponentGroupRef Id="CG_Sub_ru" />
+      <ComponentGroupRef Id="CG_Sub_tr" />
+      <ComponentGroupRef Id="CG_Sub_zh_Hans" />
+      <ComponentGroupRef Id="CG_Sub_zh_Hant" />
+      <ComponentGroupRef Id="Shortcuts" />
+    </Feature>
+  </Package>
+
+  <!-- ============== 目录结构 ============== -->
+  <Fragment>
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="RpCalculator">
+        <Directory Id="AppSubFolder" Name="今日人品间隔分析器">
+          <Directory Id="Sub_cs" Name="cs" />
+          <Directory Id="Sub_de" Name="de" />
+          <Directory Id="Sub_es" Name="es" />
+          <Directory Id="Sub_fr" Name="fr" />
+          <Directory Id="Sub_it" Name="it" />
+          <Directory Id="Sub_ja" Name="ja" />
+          <Directory Id="Sub_ko" Name="ko" />
+          <Directory Id="Sub_pl" Name="pl" />
+          <Directory Id="Sub_pt_BR" Name="pt-BR" />
+          <Directory Id="Sub_ru" Name="ru" />
+          <Directory Id="Sub_tr" Name="tr" />
+          <Directory Id="Sub_zh_Hans" Name="zh-Hans" />
+          <Directory Id="Sub_zh_Hant" Name="zh-Hant" />
+        </Directory>
+      </Directory>
+    </StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="StartMenuAppFolder" Name="今日人品间隔分析器" />
+    </StandardDirectory>
+  </Fragment>
+
+  <Fragment>
+    <ComponentGroup Id="AppFiles" Directory="AppSubFolder">
+      <Component Id="AppAllFiles" Guid="{3F018332-DF32-5294-B76D-F5C26E0CBD7F}">
+        <File Source="Accessibility.dll" />
+        <File Source="D3DCompiler_47_cor3.dll" />
+        <File Source="DirectWriteForwarder.dll" />
+        <File Source="Microsoft.CSharp.dll" />
+        <File Source="Microsoft.DiaSymReader.Native.amd64.dll" />
+        <File Source="Microsoft.VisualBasic.Core.dll" />
+        <File Source="Microsoft.VisualBasic.Forms.dll" />
+        <File Source="Microsoft.VisualBasic.dll" />
+        <File Source="Microsoft.Win32.Primitives.dll" />
+        <File Source="Microsoft.Win32.Registry.AccessControl.dll" />
+        <File Source="Microsoft.Win32.Registry.dll" />
+        <File Source="Microsoft.Win32.SystemEvents.dll" />
+        <File Source="PenImc_cor3.dll" />
+        <File Source="PresentationCore.dll" />
+        <File Source="PresentationFramework-SystemCore.dll" />
+        <File Source="PresentationFramework-SystemData.dll" />
+        <File Source="PresentationFramework-SystemDrawing.dll" />
+        <File Source="PresentationFramework-SystemXml.dll" />
+        <File Source="PresentationFramework-SystemXmlLinq.dll" />
+        <File Source="PresentationFramework.Aero.dll" />
+        <File Source="PresentationFramework.Aero2.dll" />
+        <File Source="PresentationFramework.AeroLite.dll" />
+        <File Source="PresentationFramework.Classic.dll" />
+        <File Source="PresentationFramework.Luna.dll" />
+        <File Source="PresentationFramework.Royale.dll" />
+        <File Source="PresentationFramework.dll" />
+        <File Source="PresentationNative_cor3.dll" />
+        <File Source="PresentationUI.dll" />
+        <File Source="ReachFramework.dll" />
+        <File Source="RpCalculator.App.deps.json" />
+        <File Source="RpCalculator.App.dll" />
+        <File Source="RpCalculator.App.runtimeconfig.json" />
+        <File Source="RpCalculator.Core.dll" />
+        <File Source="System.AppContext.dll" />
+        <File Source="System.Buffers.dll" />
+        <File Source="System.CodeDom.dll" />
+        <File Source="System.Collections.Concurrent.dll" />
+        <File Source="System.Collections.Immutable.dll" />
+        <File Source="System.Collections.NonGeneric.dll" />
+        <File Source="System.Collections.Specialized.dll" />
+        <File Source="System.Collections.dll" />
+        <File Source="System.ComponentModel.Annotations.dll" />
+        <File Source="System.ComponentModel.DataAnnotations.dll" />
+        <File Source="System.ComponentModel.EventBasedAsync.dll" />
+        <File Source="System.ComponentModel.Primitives.dll" />
+        <File Source="System.ComponentModel.TypeConverter.dll" />
+        <File Source="System.ComponentModel.dll" />
+        <File Source="System.Configuration.ConfigurationManager.dll" />
+        <File Source="System.Configuration.dll" />
+        <File Source="System.Console.dll" />
+        <File Source="System.Core.dll" />
+        <File Source="System.Data.Common.dll" />
+        <File Source="System.Data.DataSetExtensions.dll" />
+        <File Source="System.Data.dll" />
+        <File Source="System.Design.dll" />
+        <File Source="System.Diagnostics.Contracts.dll" />
+        <File Source="System.Diagnostics.Debug.dll" />
+        <File Source="System.Diagnostics.DiagnosticSource.dll" />
+        <File Source="System.Diagnostics.EventLog.Messages.dll" />
+        <File Source="System.Diagnostics.EventLog.dll" />
+        <File Source="System.Diagnostics.FileVersionInfo.dll" />
+        <File Source="System.Diagnostics.PerformanceCounter.dll" />
+        <File Source="System.Diagnostics.Process.dll" />
+        <File Source="System.Diagnostics.StackTrace.dll" />
+        <File Source="System.Diagnostics.TextWriterTraceListener.dll" />
+        <File Source="System.Diagnostics.Tools.dll" />
+        <File Source="System.Diagnostics.TraceSource.dll" />
+        <File Source="System.Diagnostics.Tracing.dll" />
+        <File Source="System.DirectoryServices.dll" />
+        <File Source="System.Drawing.Common.dll" />
+        <File Source="System.Drawing.Design.dll" />
+        <File Source="System.Drawing.Primitives.dll" />
+        <File Source="System.Drawing.dll" />
+        <File Source="System.Dynamic.Runtime.dll" />
+        <File Source="System.Formats.Asn1.dll" />
+        <File Source="System.Formats.Tar.dll" />
+        <File Source="System.Globalization.Calendars.dll" />
+        <File Source="System.Globalization.Extensions.dll" />
+        <File Source="System.Globalization.dll" />
+        <File Source="System.IO.Compression.Brotli.dll" />
+        <File Source="System.IO.Compression.FileSystem.dll" />
+        <File Source="System.IO.Compression.Native.dll" />
+        <File Source="System.IO.Compression.ZipFile.dll" />
+        <File Source="System.IO.Compression.dll" />
+        <File Source="System.IO.FileSystem.AccessControl.dll" />
+        <File Source="System.IO.FileSystem.DriveInfo.dll" />
+        <File Source="System.IO.FileSystem.Primitives.dll" />
+        <File Source="System.IO.FileSystem.Watcher.dll" />
+        <File Source="System.IO.FileSystem.dll" />
+        <File Source="System.IO.IsolatedStorage.dll" />
+        <File Source="System.IO.MemoryMappedFiles.dll" />
+        <File Source="System.IO.Packaging.dll" />
+        <File Source="System.IO.Pipes.AccessControl.dll" />
+        <File Source="System.IO.Pipes.dll" />
+        <File Source="System.IO.UnmanagedMemoryStream.dll" />
+        <File Source="System.IO.dll" />
+        <File Source="System.Linq.Expressions.dll" />
+        <File Source="System.Linq.Parallel.dll" />
+        <File Source="System.Linq.Queryable.dll" />
+        <File Source="System.Linq.dll" />
+        <File Source="System.Memory.dll" />
+        <File Source="System.Net.Http.Json.dll" />
+        <File Source="System.Net.Http.dll" />
+        <File Source="System.Net.HttpListener.dll" />
+        <File Source="System.Net.Mail.dll" />
+        <File Source="System.Net.NameResolution.dll" />
+        <File Source="System.Net.NetworkInformation.dll" />
+        <File Source="System.Net.Ping.dll" />
+        <File Source="System.Net.Primitives.dll" />
+        <File Source="System.Net.Quic.dll" />
+        <File Source="System.Net.Requests.dll" />
+        <File Source="System.Net.Security.dll" />
+        <File Source="System.Net.ServicePoint.dll" />
+        <File Source="System.Net.Sockets.dll" />
+        <File Source="System.Net.WebClient.dll" />
+        <File Source="System.Net.WebHeaderCollection.dll" />
+        <File Source="System.Net.WebProxy.dll" />
+        <File Source="System.Net.WebSockets.Client.dll" />
+        <File Source="System.Net.WebSockets.dll" />
+        <File Source="System.Net.dll" />
+        <File Source="System.Numerics.Vectors.dll" />
+        <File Source="System.Numerics.dll" />
+        <File Source="System.ObjectModel.dll" />
+        <File Source="System.Printing.dll" />
+        <File Source="System.Private.CoreLib.dll" />
+        <File Source="System.Private.DataContractSerialization.dll" />
+        <File Source="System.Private.Uri.dll" />
+        <File Source="System.Private.Xml.Linq.dll" />
+        <File Source="System.Private.Xml.dll" />
+        <File Source="System.Reflection.DispatchProxy.dll" />
+        <File Source="System.Reflection.Emit.ILGeneration.dll" />
+        <File Source="System.Reflection.Emit.Lightweight.dll" />
+        <File Source="System.Reflection.Emit.dll" />
+        <File Source="System.Reflection.Extensions.dll" />
+        <File Source="System.Reflection.Metadata.dll" />
+        <File Source="System.Reflection.Primitives.dll" />
+        <File Source="System.Reflection.TypeExtensions.dll" />
+        <File Source="System.Reflection.dll" />
+        <File Source="System.Resources.Extensions.dll" />
+        <File Source="System.Resources.Reader.dll" />
+        <File Source="System.Resources.ResourceManager.dll" />
+        <File Source="System.Resources.Writer.dll" />
+        <File Source="System.Runtime.CompilerServices.Unsafe.dll" />
+        <File Source="System.Runtime.CompilerServices.VisualC.dll" />
+        <File Source="System.Runtime.Extensions.dll" />
+        <File Source="System.Runtime.Handles.dll" />
+        <File Source="System.Runtime.InteropServices.JavaScript.dll" />
+        <File Source="System.Runtime.InteropServices.RuntimeInformation.dll" />
+        <File Source="System.Runtime.InteropServices.dll" />
+        <File Source="System.Runtime.Intrinsics.dll" />
+        <File Source="System.Runtime.Loader.dll" />
+        <File Source="System.Runtime.Numerics.dll" />
+        <File Source="System.Runtime.Serialization.Formatters.dll" />
+        <File Source="System.Runtime.Serialization.Json.dll" />
+        <File Source="System.Runtime.Serialization.Primitives.dll" />
+        <File Source="System.Runtime.Serialization.Xml.dll" />
+        <File Source="System.Runtime.Serialization.dll" />
+        <File Source="System.Runtime.dll" />
+        <File Source="System.Security.AccessControl.dll" />
+        <File Source="System.Security.Claims.dll" />
+        <File Source="System.Security.Cryptography.Algorithms.dll" />
+        <File Source="System.Security.Cryptography.Cng.dll" />
+        <File Source="System.Security.Cryptography.Csp.dll" />
+        <File Source="System.Security.Cryptography.Encoding.dll" />
+        <File Source="System.Security.Cryptography.OpenSsl.dll" />
+        <File Source="System.Security.Cryptography.Pkcs.dll" />
+        <File Source="System.Security.Cryptography.Primitives.dll" />
+        <File Source="System.Security.Cryptography.ProtectedData.dll" />
+        <File Source="System.Security.Cryptography.X509Certificates.dll" />
+        <File Source="System.Security.Cryptography.Xml.dll" />
+        <File Source="System.Security.Cryptography.dll" />
+        <File Source="System.Security.Permissions.dll" />
+        <File Source="System.Security.Principal.Windows.dll" />
+        <File Source="System.Security.Principal.dll" />
+        <File Source="System.Security.SecureString.dll" />
+        <File Source="System.Security.dll" />
+        <File Source="System.ServiceModel.Web.dll" />
+        <File Source="System.ServiceProcess.dll" />
+        <File Source="System.Text.Encoding.CodePages.dll" />
+        <File Source="System.Text.Encoding.Extensions.dll" />
+        <File Source="System.Text.Encoding.dll" />
+        <File Source="System.Text.Encodings.Web.dll" />
+        <File Source="System.Text.Json.dll" />
+        <File Source="System.Text.RegularExpressions.dll" />
+        <File Source="System.Threading.AccessControl.dll" />
+        <File Source="System.Threading.Channels.dll" />
+        <File Source="System.Threading.Overlapped.dll" />
+        <File Source="System.Threading.Tasks.Dataflow.dll" />
+        <File Source="System.Threading.Tasks.Extensions.dll" />
+        <File Source="System.Threading.Tasks.Parallel.dll" />
+        <File Source="System.Threading.Tasks.dll" />
+        <File Source="System.Threading.Thread.dll" />
+        <File Source="System.Threading.ThreadPool.dll" />
+        <File Source="System.Threading.Timer.dll" />
+        <File Source="System.Threading.dll" />
+        <File Source="System.Transactions.Local.dll" />
+        <File Source="System.Transactions.dll" />
+        <File Source="System.ValueTuple.dll" />
+        <File Source="System.Web.HttpUtility.dll" />
+        <File Source="System.Web.dll" />
+        <File Source="System.Windows.Controls.Ribbon.dll" />
+        <File Source="System.Windows.Extensions.dll" />
+        <File Source="System.Windows.Forms.Design.Editors.dll" />
+        <File Source="System.Windows.Forms.Design.dll" />
+        <File Source="System.Windows.Forms.Primitives.dll" />
+        <File Source="System.Windows.Forms.dll" />
+        <File Source="System.Windows.Input.Manipulations.dll" />
+        <File Source="System.Windows.Presentation.dll" />
+        <File Source="System.Windows.dll" />
+        <File Source="System.Xaml.dll" />
+        <File Source="System.Xml.Linq.dll" />
+        <File Source="System.Xml.ReaderWriter.dll" />
+        <File Source="System.Xml.Serialization.dll" />
+        <File Source="System.Xml.XDocument.dll" />
+        <File Source="System.Xml.XPath.XDocument.dll" />
+        <File Source="System.Xml.XPath.dll" />
+        <File Source="System.Xml.XmlDocument.dll" />
+        <File Source="System.Xml.XmlSerializer.dll" />
+        <File Source="System.Xml.dll" />
+        <File Source="System.dll" />
+        <File Source="UIAutomationClient.dll" />
+        <File Source="UIAutomationClientSideProviders.dll" />
+        <File Source="UIAutomationProvider.dll" />
+        <File Source="UIAutomationTypes.dll" />
+        <File Source="WindowsBase.dll" />
+        <File Source="WindowsFormsIntegration.dll" />
+        <File Source="clretwrc.dll" />
+        <File Source="clrgc.dll" />
+        <File Source="clrjit.dll" />
+        <File Source="coreclr.dll" />
+        <File Source="createdump.exe" />
+        <File Source="hostfxr.dll" />
+        <File Source="hostpolicy.dll" />
+        <File Source="mscordaccore.dll" />
+        <File Source="mscordaccore_amd64_amd64_8.0.2826.26413.dll" />
+        <File Source="mscordbi.dll" />
+        <File Source="mscorlib.dll" />
+        <File Source="mscorrc.dll" />
+        <File Source="msquic.dll" />
+        <File Source="netstandard.dll" />
+        <File Source="vcruntime140_cor3.dll" />
+        <File Source="wpfgfx_cor3.dll" />
+        <File Id="AppExeKeyPath" Source="RpCalculator.App.exe" KeyPath="yes" Checksum="yes" />
+      </Component>
+    </ComponentGroup>
+  </Fragment>
+
+  <Fragment>
+    <ComponentGroup Id="CG_Sub_cs" Directory="Sub_cs">
+      <Component Id="Cmp_Sub_cs" Guid="{B611AFF2-54FD-51AE-B170-ED43AB67BC1D}">
+        <File Id="Cmp_Sub_cs_kp" Source="cs/Microsoft.VisualBasic.Forms.resources.dll" KeyPath="yes" />
+        <File Source="cs/PresentationCore.resources.dll" />
+        <File Source="cs/PresentationFramework.resources.dll" />
+        <File Source="cs/PresentationUI.resources.dll" />
+        <File Source="cs/ReachFramework.resources.dll" />
+        <File Source="cs/System.Windows.Controls.Ribbon.resources.dll" />
+        <File Source="cs/System.Windows.Forms.Design.resources.dll" />
+        <File Source="cs/System.Windows.Forms.Primitives.resources.dll" />
+        <File Source="cs/System.Windows.Forms.resources.dll" />
+        <File Source="cs/System.Windows.Input.Manipulations.resources.dll" />
+        <File Source="cs/System.Xaml.resources.dll" />
+        <File Source="cs/UIAutomationClient.resources.dll" />
+        <File Source="cs/UIAutomationClientSideProviders.resources.dll" />
+        <File Source="cs/UIAutomationProvider.resources.dll" />
+        <File Source="cs/UIAutomationTypes.resources.dll" />
+        <File Source="cs/WindowsBase.resources.dll" />
+        <File Source="cs/WindowsFormsIntegration.resources.dll" />
+      </Component>
+    </ComponentGroup>
+  </Fragment>
+
+  <Fragment>
+    <ComponentGroup Id="CG_Sub_de" Directory="Sub_de">
+      <Component Id="Cmp_Sub_de" Guid="{C97547BE-75CC-5105-837C-3F2AEEE38379}">
+        <File Id="Cmp_Sub_de_kp" Source="de/Microsoft.VisualBasic.Forms.resources.dll" KeyPath="yes" />
+        <File Source="de/PresentationCore.resources.dll" />
+        <File Source="de/PresentationFramework.resources.dll" />
+        <File Source="de/PresentationUI.resources.dll" />
+        <File Source="de/ReachFramework.resources.dll" />
+        <File Source="de/System.Windows.Controls.Ribbon.resources.dll" />
+        <File Source="de/System.Windows.Forms.Design.resources.dll" />
+        <File Source="de/System.Windows.Forms.Primitives.resources.dll" />
+        <File Source="de/System.Windows.Forms.resources.dll" />
+        <File Source="de/System.Windows.Input.Manipulations.resources.dll" />
+        <File Source="de/System.Xaml.resources.dll" />
+        <File Source="de/UIAutomationClient.resources.dll" />
+        <File Source="de/UIAutomationClientSideProviders.resources.dll" />
+        <File Source="de/UIAutomationProvider.resources.dll" />
+        <File Source="de/UIAutomationTypes.resources.dll" />
+        <File Source="de/WindowsBase.resources.dll" />
+        <File Source="de/WindowsFormsIntegration.resources.dll" />
+      </Component>
+    </ComponentGroup>
+  </Fragment>
+
+  <Fragment>
+    <ComponentGroup Id="CG_Sub_es" Directory="Sub_es">
+      <Component Id="Cmp_Sub_es" Guid="{E5E62521-C9F9-5D6B-9E4A-7436A184B80B}">
+        <File Id="Cmp_Sub_es_kp" Source="es/Microsoft.VisualBasic.Forms.resources.dll" KeyPath="yes" />
+        <File Source="es/PresentationCore.resources.dll" />
+        <File Source="es/PresentationFramework.resources.dll" />
+        <File Source="es/PresentationUI.resources.dll" />
+        <File Source="es/ReachFramework.resources.dll" />
+        <File Source="es/System.Windows.Controls.Ribbon.resources.dll" />
+        <File Source="es/System.Windows.Forms.Design.resources.dll" />
+        <File Source="es/System.Windows.Forms.Primitives.resources.dll" />
+        <File Source="es/System.Windows.Forms.resources.dll" />
+        <File Source="es/System.Windows.Input.Manipulations.resources.dll" />
+        <File Source="es/System.Xaml.resources.dll" />
+        <File Source="es/UIAutomationClient.resources.dll" />
+        <File Source="es/UIAutomationClientSideProviders.resources.dll" />
+        <File Source="es/UIAutomationProvider.resources.dll" />
+        <File Source="es/UIAutomationTypes.resources.dll" />
+        <File Source="es/WindowsBase.resources.dll" />
+        <File Source="es/WindowsFormsIntegration.resources.dll" />
+      </Component>
+    </ComponentGroup>
+  </Fragment>
+
+  <Fragment>
+    <ComponentGroup Id="CG_Sub_fr" Directory="Sub_fr">
+      <Component Id="Cmp_Sub_fr" Guid="{B19F7A05-C09C-52AA-AE7B-F39305140312}">
+        <File Id="Cmp_Sub_fr_kp" Source="fr/Microsoft.VisualBasic.Forms.resources.dll" KeyPath="yes" />
+        <File Source="fr/PresentationCore.resources.dll" />
+        <File Source="fr/PresentationFramework.resources.dll" />
+        <File Source="fr/PresentationUI.resources.dll" />
+        <File Source="fr/ReachFramework.resources.dll" />
+        <File Source="fr/System.Windows.Controls.Ribbon.resources.dll" />
+        <File Source="fr/System.Windows.Forms.Design.resources.dll" />
+        <File Source="fr/System.Windows.Forms.Primitives.resources.dll" />
+        <File Source="fr/System.Windows.Forms.resources.dll" />
+        <File Source="fr/System.Windows.Input.Manipulations.resources.dll" />
+        <File Source="fr/System.Xaml.resources.dll" />
+        <File Source="fr/UIAutomationClient.resources.dll" />
+        <File Source="fr/UIAutomationClientSideProviders.resources.dll" />
+        <File Source="fr/UIAutomationProvider.resources.dll" />
+        <File Source="fr/UIAutomationTypes.resources.dll" />
+        <File Source="fr/WindowsBase.resources.dll" />
+        <File Source="fr/WindowsFormsIntegration.resources.dll" />
+      </Component>
+    </ComponentGroup>
+  </Fragment>
+
+  <Fragment>
+    <ComponentGroup Id="CG_Sub_it" Directory="Sub_it">
+      <Component Id="Cmp_Sub_it" Guid="{7A4BF888-9AC7-5862-8381-FB22EF48B3C7}">
+        <File Id="Cmp_Sub_it_kp" Source="it/Microsoft.VisualBasic.Forms.resources.dll" KeyPath="yes" />
+        <File Source="it/PresentationCore.resources.dll" />
+        <File Source="it/PresentationFramework.resources.dll" />
+        <File Source="it/PresentationUI.resources.dll" />
+        <File Source="it/ReachFramework.resources.dll" />
+        <File Source="it/System.Windows.Controls.Ribbon.resources.dll" />
+        <File Source="it/System.Windows.Forms.Design.resources.dll" />
+        <File Source="it/System.Windows.Forms.Primitives.resources.dll" />
+        <File Source="it/System.Windows.Forms.resources.dll" />
+        <File Source="it/System.Windows.Input.Manipulations.resources.dll" />
+        <File Source="it/System.Xaml.resources.dll" />
+        <File Source="it/UIAutomationClient.resources.dll" />
+        <File Source="it/UIAutomationClientSideProviders.resources.dll" />
+        <File Source="it/UIAutomationProvider.resources.dll" />
+        <File Source="it/UIAutomationTypes.resources.dll" />
+        <File Source="it/WindowsBase.resources.dll" />
+        <File Source="it/WindowsFormsIntegration.resources.dll" />
+      </Component>
+    </ComponentGroup>
+  </Fragment>
+
+  <Fragment>
+    <ComponentGroup Id="CG_Sub_ja" Directory="Sub_ja">
+      <Component Id="Cmp_Sub_ja" Guid="{8056750A-4E19-5290-86D5-A14B65829A50}">
+        <File Id="Cmp_Sub_ja_kp" Source="ja/Microsoft.VisualBasic.Forms.resources.dll" KeyPath="yes" />
+        <File Source="ja/PresentationCore.resources.dll" />
+        <File Source="ja/PresentationFramework.resources.dll" />
+        <File Source="ja/PresentationUI.resources.dll" />
+        <File Source="ja/ReachFramework.resources.dll" />
+        <File Source="ja/System.Windows.Controls.Ribbon.resources.dll" />
+        <File Source="ja/System.Windows.Forms.Design.resources.dll" />
+        <File Source="ja/System.Windows.Forms.Primitives.resources.dll" />
+        <File Source="ja/System.Windows.Forms.resources.dll" />
+        <File Source="ja/System.Windows.Input.Manipulations.resources.dll" />
+        <File Source="ja/System.Xaml.resources.dll" />
+        <File Source="ja/UIAutomationClient.resources.dll" />
+        <File Source="ja/UIAutomationClientSideProviders.resources.dll" />
+        <File Source="ja/UIAutomationProvider.resources.dll" />
+        <File Source="ja/UIAutomationTypes.resources.dll" />
+        <File Source="ja/WindowsBase.resources.dll" />
+        <File Source="ja/WindowsFormsIntegration.resources.dll" />
+      </Component>
+    </ComponentGroup>
+  </Fragment>
+
+  <Fragment>
+    <ComponentGroup Id="CG_Sub_ko" Directory="Sub_ko">
+      <Component Id="Cmp_Sub_ko" Guid="{65CD1999-59B1-547A-8DDE-3FB845E70807}">
+        <File Id="Cmp_Sub_ko_kp" Source="ko/Microsoft.VisualBasic.Forms.resources.dll" KeyPath="yes" />
+        <File Source="ko/PresentationCore.resources.dll" />
+        <File Source="ko/PresentationFramework.resources.dll" />
+        <File Source="ko/PresentationUI.resources.dll" />
+        <File Source="ko/ReachFramework.resources.dll" />
+        <File Source="ko/System.Windows.Controls.Ribbon.resources.dll" />
+        <File Source="ko/System.Windows.Forms.Design.resources.dll" />
+        <File Source="ko/System.Windows.Forms.Primitives.resources.dll" />
+        <File Source="ko/System.Windows.Forms.resources.dll" />
+        <File Source="ko/System.Windows.Input.Manipulations.resources.dll" />
+        <File Source="ko/System.Xaml.resources.dll" />
+        <File Source="ko/UIAutomationClient.resources.dll" />
+        <File Source="ko/UIAutomationClientSideProviders.resources.dll" />
+        <File Source="ko/UIAutomationProvider.resources.dll" />
+        <File Source="ko/UIAutomationTypes.resources.dll" />
+        <File Source="ko/WindowsBase.resources.dll" />
+        <File Source="ko/WindowsFormsIntegration.resources.dll" />
+      </Component>
+    </ComponentGroup>
+  </Fragment>
+
+  <Fragment>
+    <ComponentGroup Id="CG_Sub_pl" Directory="Sub_pl">
+      <Component Id="Cmp_Sub_pl" Guid="{A1D2FA9E-2E60-573D-AA78-CDA413DAFCB0}">
+        <File Id="Cmp_Sub_pl_kp" Source="pl/Microsoft.VisualBasic.Forms.resources.dll" KeyPath="yes" />
+        <File Source="pl/PresentationCore.resources.dll" />
+        <File Source="pl/PresentationFramework.resources.dll" />
+        <File Source="pl/PresentationUI.resources.dll" />
+        <File Source="pl/ReachFramework.resources.dll" />
+        <File Source="pl/System.Windows.Controls.Ribbon.resources.dll" />
+        <File Source="pl/System.Windows.Forms.Design.resources.dll" />
+        <File Source="pl/System.Windows.Forms.Primitives.resources.dll" />
+        <File Source="pl/System.Windows.Forms.resources.dll" />
+        <File Source="pl/System.Windows.Input.Manipulations.resources.dll" />
+        <File Source="pl/System.Xaml.resources.dll" />
+        <File Source="pl/UIAutomationClient.resources.dll" />
+        <File Source="pl/UIAutomationClientSideProviders.resources.dll" />
+        <File Source="pl/UIAutomationProvider.resources.dll" />
+        <File Source="pl/UIAutomationTypes.resources.dll" />
+        <File Source="pl/WindowsBase.resources.dll" />
+        <File Source="pl/WindowsFormsIntegration.resources.dll" />
+      </Component>
+    </ComponentGroup>
+  </Fragment>
+
+  <Fragment>
+    <ComponentGroup Id="CG_Sub_pt_BR" Directory="Sub_pt_BR">
+      <Component Id="Cmp_Sub_pt_BR" Guid="{02EE64E6-8FD3-5955-9CB8-231FCEE840F5}">
+        <File Id="Cmp_Sub_pt_BR_kp" Source="pt-BR/Microsoft.VisualBasic.Forms.resources.dll" KeyPath="yes" />
+        <File Source="pt-BR/PresentationCore.resources.dll" />
+        <File Source="pt-BR/PresentationFramework.resources.dll" />
+        <File Source="pt-BR/PresentationUI.resources.dll" />
+        <File Source="pt-BR/ReachFramework.resources.dll" />
+        <File Source="pt-BR/System.Windows.Controls.Ribbon.resources.dll" />
+        <File Source="pt-BR/System.Windows.Forms.Design.resources.dll" />
+        <File Source="pt-BR/System.Windows.Forms.Primitives.resources.dll" />
+        <File Source="pt-BR/System.Windows.Forms.resources.dll" />
+        <File Source="pt-BR/System.Windows.Input.Manipulations.resources.dll" />
+        <File Source="pt-BR/System.Xaml.resources.dll" />
+        <File Source="pt-BR/UIAutomationClient.resources.dll" />
+        <File Source="pt-BR/UIAutomationClientSideProviders.resources.dll" />
+        <File Source="pt-BR/UIAutomationProvider.resources.dll" />
+        <File Source="pt-BR/UIAutomationTypes.resources.dll" />
+        <File Source="pt-BR/WindowsBase.resources.dll" />
+        <File Source="pt-BR/WindowsFormsIntegration.resources.dll" />
+      </Component>
+    </ComponentGroup>
+  </Fragment>
+
+  <Fragment>
+    <ComponentGroup Id="CG_Sub_ru" Directory="Sub_ru">
+      <Component Id="Cmp_Sub_ru" Guid="{78E17633-7EDE-540B-B558-CAACD95FC253}">
+        <File Id="Cmp_Sub_ru_kp" Source="ru/Microsoft.VisualBasic.Forms.resources.dll" KeyPath="yes" />
+        <File Source="ru/PresentationCore.resources.dll" />
+        <File Source="ru/PresentationFramework.resources.dll" />
+        <File Source="ru/PresentationUI.resources.dll" />
+        <File Source="ru/ReachFramework.resources.dll" />
+        <File Source="ru/System.Windows.Controls.Ribbon.resources.dll" />
+        <File Source="ru/System.Windows.Forms.Design.resources.dll" />
+        <File Source="ru/System.Windows.Forms.Primitives.resources.dll" />
+        <File Source="ru/System.Windows.Forms.resources.dll" />
+        <File Source="ru/System.Windows.Input.Manipulations.resources.dll" />
+        <File Source="ru/System.Xaml.resources.dll" />
+        <File Source="ru/UIAutomationClient.resources.dll" />
+        <File Source="ru/UIAutomationClientSideProviders.resources.dll" />
+        <File Source="ru/UIAutomationProvider.resources.dll" />
+        <File Source="ru/UIAutomationTypes.resources.dll" />
+        <File Source="ru/WindowsBase.resources.dll" />
+        <File Source="ru/WindowsFormsIntegration.resources.dll" />
+      </Component>
+    </ComponentGroup>
+  </Fragment>
+
+  <Fragment>
+    <ComponentGroup Id="CG_Sub_tr" Directory="Sub_tr">
+      <Component Id="Cmp_Sub_tr" Guid="{4290C73A-28C1-580A-93F3-DAF772BAFD62}">
+        <File Id="Cmp_Sub_tr_kp" Source="tr/Microsoft.VisualBasic.Forms.resources.dll" KeyPath="yes" />
+        <File Source="tr/PresentationCore.resources.dll" />
+        <File Source="tr/PresentationFramework.resources.dll" />
+        <File Source="tr/PresentationUI.resources.dll" />
+        <File Source="tr/ReachFramework.resources.dll" />
+        <File Source="tr/System.Windows.Controls.Ribbon.resources.dll" />
+        <File Source="tr/System.Windows.Forms.Design.resources.dll" />
+        <File Source="tr/System.Windows.Forms.Primitives.resources.dll" />
+        <File Source="tr/System.Windows.Forms.resources.dll" />
+        <File Source="tr/System.Windows.Input.Manipulations.resources.dll" />
+        <File Source="tr/System.Xaml.resources.dll" />
+        <File Source="tr/UIAutomationClient.resources.dll" />
+        <File Source="tr/UIAutomationClientSideProviders.resources.dll" />
+        <File Source="tr/UIAutomationProvider.resources.dll" />
+        <File Source="tr/UIAutomationTypes.resources.dll" />
+        <File Source="tr/WindowsBase.resources.dll" />
+        <File Source="tr/WindowsFormsIntegration.resources.dll" />
+      </Component>
+    </ComponentGroup>
+  </Fragment>
+
+  <Fragment>
+    <ComponentGroup Id="CG_Sub_zh_Hans" Directory="Sub_zh_Hans">
+      <Component Id="Cmp_Sub_zh_Hans" Guid="{2E890139-FBBE-57A8-AE69-1788FAD09F83}">
+        <File Id="Cmp_Sub_zh_Hans_kp" Source="zh-Hans/Microsoft.VisualBasic.Forms.resources.dll" KeyPath="yes" />
+        <File Source="zh-Hans/PresentationCore.resources.dll" />
+        <File Source="zh-Hans/PresentationFramework.resources.dll" />
+        <File Source="zh-Hans/PresentationUI.resources.dll" />
+        <File Source="zh-Hans/ReachFramework.resources.dll" />
+        <File Source="zh-Hans/System.Windows.Controls.Ribbon.resources.dll" />
+        <File Source="zh-Hans/System.Windows.Forms.Design.resources.dll" />
+        <File Source="zh-Hans/System.Windows.Forms.Primitives.resources.dll" />
+        <File Source="zh-Hans/System.Windows.Forms.resources.dll" />
+        <File Source="zh-Hans/System.Windows.Input.Manipulations.resources.dll" />
+        <File Source="zh-Hans/System.Xaml.resources.dll" />
+        <File Source="zh-Hans/UIAutomationClient.resources.dll" />
+        <File Source="zh-Hans/UIAutomationClientSideProviders.resources.dll" />
+        <File Source="zh-Hans/UIAutomationProvider.resources.dll" />
+        <File Source="zh-Hans/UIAutomationTypes.resources.dll" />
+        <File Source="zh-Hans/WindowsBase.resources.dll" />
+        <File Source="zh-Hans/WindowsFormsIntegration.resources.dll" />
+      </Component>
+    </ComponentGroup>
+  </Fragment>
+
+  <Fragment>
+    <ComponentGroup Id="CG_Sub_zh_Hant" Directory="Sub_zh_Hant">
+      <Component Id="Cmp_Sub_zh_Hant" Guid="{1D4B27E8-4EC6-5587-910A-327B04A56079}">
+        <File Id="Cmp_Sub_zh_Hant_kp" Source="zh-Hant/Microsoft.VisualBasic.Forms.resources.dll" KeyPath="yes" />
+        <File Source="zh-Hant/PresentationCore.resources.dll" />
+        <File Source="zh-Hant/PresentationFramework.resources.dll" />
+        <File Source="zh-Hant/PresentationUI.resources.dll" />
+        <File Source="zh-Hant/ReachFramework.resources.dll" />
+        <File Source="zh-Hant/System.Windows.Controls.Ribbon.resources.dll" />
+        <File Source="zh-Hant/System.Windows.Forms.Design.resources.dll" />
+        <File Source="zh-Hant/System.Windows.Forms.Primitives.resources.dll" />
+        <File Source="zh-Hant/System.Windows.Forms.resources.dll" />
+        <File Source="zh-Hant/System.Windows.Input.Manipulations.resources.dll" />
+        <File Source="zh-Hant/System.Xaml.resources.dll" />
+        <File Source="zh-Hant/UIAutomationClient.resources.dll" />
+        <File Source="zh-Hant/UIAutomationClientSideProviders.resources.dll" />
+        <File Source="zh-Hant/UIAutomationProvider.resources.dll" />
+        <File Source="zh-Hant/UIAutomationTypes.resources.dll" />
+        <File Source="zh-Hant/WindowsBase.resources.dll" />
+        <File Source="zh-Hant/WindowsFormsIntegration.resources.dll" />
+      </Component>
+    </ComponentGroup>
+  </Fragment>
+
+  <!-- ============== 快捷方式：开始菜单 ============== -->
+  <Fragment>
+    <DirectoryRef Id="StartMenuAppFolder">
+      <Component Id="StartMenuShortcut" Guid="{C74A9D98-E1A6-4DA7-844A-3160D74E6D38}">
+        <Shortcut Id="StartMenuShortcutLink"
+                  Name="今日人品间隔分析器"
+                  Target="[AppSubFolder]RpCalculator.App.exe"
+                  Icon="AppIcon"
+                  WorkingDirectory="AppSubFolder" />
+        <RemoveFolder Id="RemoveStartMenuFolder" Directory="StartMenuAppFolder" On="uninstall" />
+        <RegistryValue Root="HKCU"
+                       Key="Software\RpCalculator\今日人品间隔分析器"
+                       Name="installed"
+                       Type="integer"
+                       Value="1"
+                       KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+  </Fragment>
+
+  <!-- ============== 快捷方式：桌面 ============== -->
+  <Fragment>
+    <StandardDirectory Id="DesktopFolder">
+      <Component Id="DesktopShortcut" Guid="{0AE36D6D-0D9F-42F4-BE65-D434D52B9D84}">
+        <Shortcut Id="DesktopShortcutLink"
+                  Name="今日人品间隔分析器"
+                  Target="[AppSubFolder]RpCalculator.App.exe"
+                  Icon="AppIcon"
+                  WorkingDirectory="AppSubFolder" />
+        <RegistryValue Root="HKCU"
+                       Key="Software\RpCalculator\今日人品间隔分析器"
+                       Name="desktop"
+                       Type="integer"
+                       Value="1"
+                       KeyPath="yes" />
+      </Component>
+    </StandardDirectory>
+  </Fragment>
+
+  <!-- ============== 快捷方式 ComponentGroup ============== -->
+  <Fragment>
+    <ComponentGroup Id="Shortcuts">
+      <ComponentRef Id="StartMenuShortcut" />
+      <ComponentRef Id="DesktopShortcut" />
+    </ComponentGroup>
+  </Fragment>
+
+  <!-- ============== 图标：多分辨率 ICO（路径相对 -b 绑定根） ============== -->
+  <Fragment>
+    <Icon Id="AppIcon" SourceFile="src\RpCalculator.App\Assets\app.ico" />
+  </Fragment>
+
+</Wix>

@@ -9,6 +9,7 @@
         MinHeight="600"
         WindowStartupLocation="CenterScreen"
         WindowStyle="None"
+        Icon="Assets\app.ico"
         Background="{DynamicResource WindowBackgroundBrush}"
         Foreground="{DynamicResource TextPrimaryBrush}"
         FontFamily="Segoe UI Variable, Microsoft YaHei UI, Segoe UI">
@@ -40,18 +41,26 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Column="0"
-                            Orientation="Vertical"
+                            Orientation="Horizontal"
                             VerticalAlignment="Center"
                             Margin="20,0,0,0"
                             shell:WindowChrome.IsHitTestVisibleInChrome="False">
-                    <TextBlock Text="今日人品间隔分析器"
-                               FontSize="20"
-                               FontWeight="SemiBold"
-                               Foreground="{DynamicResource TextPrimaryBrush}" />
-                    <TextBlock Text="{Binding ModeSubtitle}"
-                               FontSize="12"
-                               Margin="0,4,0,0"
-                               Foreground="{DynamicResource TextSecondaryBrush}" />
+                    <Image Source="Assets\app.ico"
+                           Width="28"
+                           Height="28"
+                           Margin="0,0,12,0"
+                           RenderOptions.BitmapScalingMode="HighQuality"
+                           VerticalAlignment="Center" />
+                    <StackPanel Orientation="Vertical" VerticalAlignment="Center">
+                        <TextBlock Text="今日人品间隔分析器"
+                                   FontSize="20"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}" />
+                        <TextBlock Text="{Binding ModeSubtitle}"
+                                   FontSize="12"
+                                   Margin="0,4,0,0"
+                                   Foreground="{DynamicResource TextSecondaryBrush}" />
+                    </StackPanel>
                 </StackPanel>
 
                 <StackPanel Grid.Column="1"
@@ -298,6 +307,118 @@
                         <ListBox ItemsSource="{Binding HundredDates}"
                                  Style="{StaticResource DateListBoxStyle}"
                                  MaxHeight="220"
+                                 ScrollViewer.VerticalScrollBarVisibility="Auto" />
+                    </StackPanel>
+                </Border>
+
+                <!-- 原始计算（独立验算）卡片：与主扫描器使用完全独立、未优化的算法，
+                     用于核对主扫描器结果是否正确。 -->
+                <Border Style="{StaticResource CardStyle}">
+                    <StackPanel>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="原始计算（独立验算）" Style="{StaticResource SectionTitleStyle}" />
+                                <TextBlock Text="按 Python 参考算法逐日重算，结果用于核对主扫描器。"
+                                           FontSize="12"
+                                           Foreground="{DynamicResource TextSecondaryBrush}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,0,0,8" />
+                            </StackPanel>
+                            <Button Grid.Column="1"
+                                    Content="填入最佳"
+                                    Command="{Binding FillRawFromBestCommand}"
+                                    Style="{StaticResource BaseButtonStyle}"
+                                    Margin="0,0,0,12"
+                                    ToolTip="把当前选中的最佳识别码与主窗口参数填入下方" />
+                        </Grid>
+
+                        <StackPanel>
+                            <TextBlock Text="识别码（可手动输入，4-4-4-4 格式自动格式化）"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       Margin="0,0,0,6" />
+                            <TextBox Text="{Binding RawIdInput, UpdateSourceTrigger=PropertyChanged}"
+                                     FontFamily="Cascadia Mono, Consolas, Microsoft YaHei UI"
+                                     FontSize="14" />
+                        </StackPanel>
+
+                        <Grid Margin="0,14,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="16" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="起始日期" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,6" />
+                                <DatePicker SelectedDate="{Binding RawStartDate, Mode=TwoWay}"
+                                            Background="{DynamicResource InputBackgroundBrush}"
+                                            Foreground="{DynamicResource TextPrimaryBrush}"
+                                            BorderBrush="{DynamicResource InputBorderBrush}"
+                                            BorderThickness="1" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="窗口天数" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,6" />
+                                <TextBox Text="{Binding RawDaysText, UpdateSourceTrigger=PropertyChanged}" />
+                            </StackPanel>
+                        </Grid>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,20,0,0">
+                            <Button Content="原始计算"
+                                    Command="{Binding RawComputeCommand}"
+                                    Style="{StaticResource AccentButtonStyle}"
+                                    Padding="24,10" />
+                            <TextBlock Text="{Binding RawStatusText}"
+                                       VerticalAlignment="Center"
+                                       Margin="14,0,0,0"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+
+                        <Grid Margin="0,16,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="16" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="16" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="识别码" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                <TextBlock Text="{Binding RawResultSummary}"
+                                           FontFamily="Cascadia Mono, Consolas, Microsoft YaHei UI"
+                                           FontSize="14"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,4,0,0" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="最大间隔（天）" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                <TextBlock Text="{Binding RawMaxGapText}"
+                                           FontSize="20"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource AccentBrush}"
+                                           Margin="0,4,0,0" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="4">
+                                <TextBlock Text="100 分日期数量" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                <TextBlock Text="{Binding RawHundredCountText}"
+                                           FontSize="20"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                           Margin="0,4,0,0" />
+                            </StackPanel>
+                        </Grid>
+
+                        <TextBlock Text="100 分日期列表（yyyy-MM-dd）"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   Margin="0,14,0,6" />
+                        <ListBox ItemsSource="{Binding RawHundredDates}"
+                                 Style="{StaticResource DateListBoxStyle}"
+                                 MaxHeight="200"
                                  ScrollViewer.VerticalScrollBarVisibility="Auto" />
                     </StackPanel>
                 </Border>
