@@ -307,7 +307,10 @@ public static class ParallelRpProcessor
         {
             // 从末尾向前找第一个指标 >= 候选的元素，插入到它之后，
             // 这样同指标的新候选总是排在已有候选后面（稳定，保留先发现）。
-            var insertAt = _entries.Count;
+            // 注意：若候选大于所有现有元素，循环不会命中，insertAt 必须保持 0（插到最前）。
+            // 曾错误初始化为 _entries.Count，导致“满 K 后最高指标的新候选被静默拒绝”，
+            // 造成并行 Top-K 与单线程不一致（边界并列时丢候选）。
+            var insertAt = 0;
             for (var i = _entries.Count - 1; i >= 0; i--)
             {
                 if (_entries[i].KeyMetric >= candidate.KeyMetric)
