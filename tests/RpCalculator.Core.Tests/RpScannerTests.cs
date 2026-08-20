@@ -125,12 +125,12 @@ public sealed class RpScannerTests
     [Fact]
     public void ScanFirst100_FirstDayHit_VisitsExactlyOneDay()
     {
-        // “abc”在 2024-01-01 是 100 分（HundredPointTests 已知向量），
+        // “BC”在 2024-01-01 是 100 分（由 Test.py 验证），
         // 窗口仅 1 天时第 0 天即命中，访问次数必须为 1 —— 最极端情况的早停。
         var info = new DateRangeInfo(new DateTime(2024, 1, 1), 1);
         var visited = new List<int>();
 
-        var result = RpScanner.ScanFirst100("abc", info, visited.Add);
+        var result = RpScanner.ScanFirst100("BC", info, visited.Add);
 
         Assert.True(result.Found);
         Assert.Equal(0, result.DateIndex);

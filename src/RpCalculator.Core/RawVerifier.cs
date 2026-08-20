@@ -7,65 +7,41 @@ namespace RpCalculator.Core;
 ///
 /// 设计目的：用于独立验证主扫描器 <see cref="RpScanner"/> 的结果是否正确。
 /// 因此这里 **故意不** 使用主扫描器的任何性能优化：
-///   - 不复用识别码前缀的哈希状态（每次对每一天都从 5381 开始重新计算整个字符串的哈希）；
+///   - 不复用任何哈希状态（每次对每一天都从 5381 开始重新计算整个种子的哈希）；
 ///   - 不按年份缓存 dayOfYear / day 字符串；
 ///   - 不跳过任何一天；
-///   - 字符串拼接 <c>rid + year + doy</c> 与 <c>rid + year + doy + day</c> 与参考 Python 实现逐字符等价。
+///   - 字符串拼接顺序与项目根目录 Test.py 完全一致。
 ///
-/// 实现严格等价于下面的 Python 参考实现：
+/// 实现严格等价于 Test.py：
 /// <code>
-/// XOR_CONST = 0xA98F501BC684032F
-/// MOD = 527527
-/// THRESHOLD = 510927
-/// MASK = (1 &lt;&lt; 64) - 1
+/// HASH_XOR = 0xA98F501BC684032F
 ///
-/// def stable_hash(s: str) -&gt; int:
+/// def stable_hash(s: str) -> int:
 ///     h = 5381
 ///     for c in s:
-///         h = ((h &lt;&lt; 5) ^ h ^ ord(c)) &amp; MASK
-///     h ^= XOR_CONST
-///     if h &gt;= (1 &lt;&lt; 63):
-///         h -= (1 &lt;&lt; 64)
-///     return h
+///         h = ((h &lt;&lt; 5) ^ h ^ ord(c)) &amp; ((1 &lt;&lt; 64) - 1)
+///     return h ^ HASH_XOR
 ///
-/// def is_hundred(h1: int, h2: int) -&gt; bool:
-///     q = h1 // 3 + h2 // 3
-///     if q &lt; 0: q = -q
-///     return q % MOD &gt;= THRESHOLD
-///
-/// def check_id(rid, start, days):
-///     start_date = datetime.strptime(start, "%Y-%m-%d")
-///     hundred_dates, last_idx, max_gap = [], None, 0
-///     for i in range(days):
-///         d = start_date + timedelta(days=i)
-///         year, doy, day = str(d.year), str(d.timetuple().tm_yday), str(d.day)
-///         h1 = stable_hash(rid + year + doy)
-///         h2 = stable_hash(rid + year + doy + day)
-///         if is_hundred(h1, h2):
-///             if last_idx is not None:
-///                 gap = i - last_idx
-///                 if gap &gt; max_gap: max_gap = gap
-///             last_idx = i
-///             hundred_dates.append(d.strftime("%Y-%m-%d"))
-///     return rid, max_gap, hundred_dates
+/// def score_for_date(d: date, identifier: str) -> int:
+///     first_seed = f"asdfgbn{d.timetuple().tm_yday}12#3$45{d.year}IUY"
+///     second_seed = f"QWERTY{identifier}0*8&amp;6{d.day}kjhg"
+///     first_hash = stable_hash(first_seed) / 3
+///     second_hash = stable_hash(second_seed) / 3
+///     raw = abs((first_hash + second_hash) / 527) % 1001
+///     rounded = round_even(raw)
+///     return 100 if rounded &gt;= 970 else round_even(rounded / 969 * 99)
 /// </code>
 ///
 /// C# 实现要求：
-///   - 64 位有符号 long 存储哈希结果；
+///   - 64 位哈希以 <see cref="long"/> 承载 Python 无符号整数的位模式；
 ///   - 所有移位/异或/加法在 <c>unchecked</c> 上下文中执行（不抛 OverflowException）；
-///   - <c>long.MinValue</c> 绝对值用 ulong 承载以避免 <c>Math.Abs</c> 抛异常；
-///   - 100 分判断使用整数等价式 <c>abs(h1/3 + h2/3) % 527527 &gt;= 510927</c>。
+///   - 参与浮点运算前，把 long 按 <c>unchecked((ulong)hash)</c> 转为 Python 的无符号数值；
+///   - 100 分判断使用 BankersRound（<c>Math.Round(value, MidpointRounding.ToEven)</c>）。
 /// </summary>
 public static class RawVerifier
 {
-    /// <summary>等价于 Python 的 <c>XOR_CONST = 0xA98F501BC684032F</c>。</summary>
+    /// <summary>等价于 Python 的 <c>XOR_CONST = 0xA98F501BC684032F</c>（位模式）。</summary>
     public const long XorConstant = unchecked((long)0xA98F501BC684032FUL);
-
-    /// <summary>等价于 Python 的 <c>MOD = 527527</c>。</summary>
-    public const long Modulus = 527527L;
-
-    /// <summary>等价于 Python 的 <c>THRESHOLD = 510927</c>。</summary>
-    public const long HundredThreshold = 510927L;
 
     /// <summary>
     /// 验算单个识别码在给定窗口内的“最大间隔”和“100 分日期”列表。
@@ -102,9 +78,12 @@ public static class RawVerifier
             var doy = d.DayOfYear.ToString(CultureInfo.InvariantCulture);
             var day = d.Day.ToString(CultureInfo.InvariantCulture);
 
-            // 字符串拼接顺序与 Python 参考完全一致：rid + year + doy(+ day)
-            var h1 = StableHashOriginal(id + year + doy);
-            var h2 = StableHashOriginal(id + year + doy + day);
+            // 字符串拼接顺序与 Test.py 完全一致。
+            var firstSeed = $"asdfgbn{doy}12#3$45{year}IUY";
+            var secondSeed = $"QWERTY{id}0*8&6{day}kjhg";
+
+            var h1 = StableHashOriginal(firstSeed);
+            var h2 = StableHashOriginal(secondSeed);
 
             if (IsHundred(h1, h2))
             {
@@ -132,8 +111,8 @@ public static class RawVerifier
     }
 
     /// <summary>
-    /// 与 Python 参考 1:1 等价的“完整字符串 → 最终 64 位有符号哈希”。
-    /// 整个过程在 <c>unchecked</c> 上下文中执行，溢出不会抛异常。
+    /// 与 Python 参考 1:1 等价的“完整字符串 → 64 位哈希”。
+    /// 返回 long 位模式，与 Python 的 64 位无符号整数一致。
     /// </summary>
     public static long StableHashOriginal(string text)
     {
@@ -141,8 +120,7 @@ public static class RawVerifier
         foreach (var c in text)
         {
             // 等价于 Python 的 ((h << 5) ^ h ^ ord(c)) & MASK，
-            // 但因为 long 是 64 位有符号，C# 移位本身就等价于 & ((1<<64)-1)，
-            // 所以这里直接 unchecked 即可。
+            // 但因为 long 是 64 位，C# 移位/异或本身就在 64 位空间回绕，等价于 & ((1<<64)-1)。
             hash = unchecked((hash << 5) ^ hash ^ c);
         }
 
@@ -151,30 +129,19 @@ public static class RawVerifier
     }
 
     /// <summary>
-    /// 与 Python 参考 1:1 等价的“是否为 100 分”判断：
-    /// <c>abs(h1/3 + h2/3) % 527527 &gt;= 510927</c>。
-    /// C# 中整数除法向零取整，与 Python 整除 <c>//</c> 行为一致。
+    /// 与 Test.py 的 <c>score_for_date</c> 中 <c>rounded &gt;= 970</c> 等价。
     /// </summary>
     public static bool IsHundred(long h1, long h2)
     {
-        long q = unchecked((h1 / 3) + (h2 / 3));
-        ulong absQ = AbsAsUInt64(q);
-        return absQ % (ulong)Modulus >= (ulong)HundredThreshold;
-    }
+        ulong u1 = unchecked((ulong)h1);
+        ulong u2 = unchecked((ulong)h2);
 
-    /// <summary>
-    /// 安全 64 位绝对值（ulong 承载），避免 <c>Math.Abs(long.MinValue)</c> 抛 OverflowException。
-    /// 与 <see cref="RpScanner.AbsAsUInt64"/> 语义一致。
-    /// </summary>
-    private static ulong AbsAsUInt64(long value)
-    {
-        if (value >= 0)
-        {
-            return (ulong)value;
-        }
+        double firstHashValue = u1 / 3.0;
+        double secondHashValue = u2 / 3.0;
+        double raw = Math.Abs((firstHashValue + secondHashValue) / 527.0) % 1001.0;
+        int rounded = (int)Math.Round(raw, MidpointRounding.ToEven);
 
-        // -(value + 1) 不溢出；+1 后得到 |value|。
-        return unchecked((ulong)(-(value + 1)) + 1UL);
+        return rounded >= 970;
     }
 }
 

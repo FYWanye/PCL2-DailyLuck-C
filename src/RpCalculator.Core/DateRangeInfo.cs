@@ -81,6 +81,9 @@ public sealed class YearGroup
     {
         Year = year;
         YearString = year.ToString(CultureInfo.InvariantCulture);
+        // 第一个种子中 dayOfYear 之后的部分：12#3$45 + year + IUY。
+        // 按年份缓存，避免每个识别码、每天重复拼接。
+        FirstSeedSuffix = "12#3$45" + YearString + "IUY";
         Entries = entries;
     }
 
@@ -88,6 +91,9 @@ public sealed class YearGroup
 
     /// <summary>年份的不可变字符串，扫描时复用。</summary>
     public string YearString { get; }
+
+    /// <summary>第一个种子中 dayOfYear 之后的不可变后缀，扫描时复用。</summary>
+    public string FirstSeedSuffix { get; }
 
     public IReadOnlyList<DayEntry> Entries { get; }
 }
