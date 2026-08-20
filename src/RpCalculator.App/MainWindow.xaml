@@ -69,11 +69,6 @@
                             Style="{StaticResource WindowButtonStyle}"
                             ToolTip="最小化"
                             shell:WindowChrome.IsHitTestVisibleInChrome="True" />
-                    <Button Content="&#x25A1;"
-                            Click="MaximizeWindow_Click"
-                            Style="{StaticResource WindowButtonStyle}"
-                            ToolTip="最大化 / 还原"
-                            shell:WindowChrome.IsHitTestVisibleInChrome="True" />
                     <Button Content="&#x2715;"
                             Click="CloseWindow_Click"
                             Style="{StaticResource CloseWindowButtonStyle}"
