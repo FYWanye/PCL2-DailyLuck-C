@@ -1,0 +1,74 @@
+# ============================================================
+# 自动构建与发布工作流
+#
+# 触发方式：
+#   1. push 以 "v" 或 "r" 开头的 tag（如 v1.0.0、r2.1）→ 构建 + 测试 + 发布 Release
+#   2. 手动触发（workflow_dispatch，保留）→ 构建 + 测试 + 上传构建产物（不创建 Release）
+#
+# 产物：win-x64 自包含可执行程序，压缩为 zip 后附加到 Release / Artifacts。
+# ============================================================
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+      - 'r*'
+  workflow_dispatch:
+
+# 并发控制：同一 ref 的重复运行自动取消旧的。
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+# 创建 Release 需要写权限。
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build & Test & Publish
+    runs-on: windows-latest
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: 还原依赖
+        run: dotnet restore RpCalculator.sln
+
+      - name: 构建（Release）
+        run: dotnet build RpCalculator.sln -c Release --no-restore
+
+      - name: 运行单元测试
+        run: dotnet test RpCalculator.sln -c Release --no-build --no-restore
+
+      - name: 发布 WPF 应用（win-x64 自包含）
+        run: dotnet publish src/RpCalculator.App/RpCalculator.App.csproj -c Release --no-restore -r win-x64 --self-contained true -o artifacts/app
+
+      - name: 打包构建产物
+        shell: pwsh
+        run: |
+          $tag = if ($env:GITHUB_REF -like 'refs/tags/*') { $env:GITHUB_REF -replace 'refs/tags/', '' } else { 'manual' }
+          Compress-Archive -Path artifacts/app/* -DestinationPath "artifacts/RpCalculator-$tag-win-x64.zip" -Force
+
+      - name: 上传构建产物（手动构建也可下载）
+        uses: actions/upload-artifact@v4
+        with:
+          name: RpCalculator-win-x64
+          path: artifacts/*.zip
+          if-no-files-found: error
+
+      # 仅在 tag 推送触发时创建 GitHub Release 并附加 zip。
+      - name: 创建 GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*.zip
+          generate_release_notes: true
+          fail_on_unmatched_files: true

@@ -46,6 +46,17 @@ dotnet run --project src/RpCalculator.App/RpCalculator.App.csproj -c Release
 dotnet test RpCalculator.sln -c Release
 ```
 
+## 持续集成（GitHub Actions）
+
+仓库内置 `.github/workflows/build-release.yml` 自动构建工作流：
+
+- **推送以 `v` 或 `r` 开头的 tag**（如 `v1.0.0`、`r2.1`）→ 自动还原、构建、跑全部测试，发布 win-x64 自包含可执行程序，并自动创建 GitHub Release 附加 zip 产物：
+  ```bash
+  git tag v1.0.0
+  git push origin v1.0.0
+  ```
+- **手动触发**（Actions 页面 → Build & Release → Run workflow）→ 同样执行构建与测试，产物上传为 Artifacts，不创建 Release。
+
 ## 识别码格式约定
 
 - **固定格式**：16 位大写十六进制字符（`0-9` / `A-F`），按 `4-4-4-4` 分组、段间用 `-` 连接，形如 `7123-4567-890A-BCDE`。
