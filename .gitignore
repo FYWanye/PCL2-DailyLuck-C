@@ -1,0 +1,15 @@
+# Build 输出
+bin/
+obj/
+
+# IDE
+.vs/
+*.user
+*.suo
+
+# WorkBuddy 工作区数据（不纳入版本控制）
+.workbuddy/
+
+# 临时文件
+*.tmp
+*.log
