@@ -220,6 +220,66 @@
                     </StackPanel>
                 </Border>
 
+                <!-- 性能监控卡片 -->
+                <Border Style="{StaticResource CardStyle}">
+                    <StackPanel>
+                        <TextBlock Text="性能监控" Style="{StaticResource SectionTitleStyle}" />
+                        <Grid Margin="0,12,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="12" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="12" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="12" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="12" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="CPU 占用率" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                <TextBlock Text="{Binding PerfCpuText}"
+                                           FontSize="16"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                           Margin="0,4,0,0" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="内存占用" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                <TextBlock Text="{Binding PerfMemoryText}"
+                                           FontSize="16"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                           Margin="0,4,0,0" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="4">
+                                <TextBlock Text="已运行时间" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                <TextBlock Text="{Binding PerfElapsedText}"
+                                           FontSize="16"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                           Margin="0,4,0,0" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="6">
+                                <TextBlock Text="当前处理速度" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                <TextBlock Text="{Binding PerfSpeedText}"
+                                           FontSize="16"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                           Margin="0,4,0,0" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="8">
+                                <TextBlock Text="预计剩余时间" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                <TextBlock Text="{Binding PerfEtaText}"
+                                           FontSize="16"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                           Margin="0,4,0,0" />
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
                 <!-- 结果卡片 -->
                 <Border Style="{StaticResource CardStyle}">
                     <StackPanel>
@@ -420,6 +480,48 @@
                                  Style="{StaticResource DateListBoxStyle}"
                                  MaxHeight="200"
                                  ScrollViewer.VerticalScrollBarVisibility="Auto" />
+                    </StackPanel>
+                </Border>
+
+                <!-- 性能基准测试卡片（页面底部） -->
+                <Border Style="{StaticResource CardStyle}">
+                    <StackPanel>
+                        <TextBlock Text="性能基准测试" Style="{StaticResource SectionTitleStyle}" />
+                        <TextBlock Text="固定随机生成 1,000,000 个识别码，完整计算 1780 天窗口，用于衡量真实 CPU 性能。"
+                                   FontSize="12"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,4,0,0" />
+                        <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                            <Button Content="开始性能基准测试"
+                                    Command="{Binding BenchmarkCommand}"
+                                    Style="{StaticResource AccentButtonStyle}"
+                                    Padding="20,8"
+                                    Margin="0,0,10,0" />
+                            <Button Content="取消基准测试"
+                                    Command="{Binding CancelBenchmarkCommand}"
+                                    Style="{StaticResource DangerButtonStyle}"
+                                    Padding="16,8"
+                                    Margin="0,0,10,0" />
+                            <Button Content="查看测试最佳识别码"
+                                    Command="{Binding ShowBenchmarkBestCommand}"
+                                    Style="{StaticResource BaseButtonStyle}"
+                                    Padding="16,8" />
+                        </StackPanel>
+                        <TextBlock Text="{Binding BenchmarkStatusText}"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,12,0,0" />
+                        <TextBlock Text="{Binding BenchmarkResultText}"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                   FontFamily="Cascadia Mono, Consolas, Microsoft YaHei UI"
+                                   TextWrapping="Wrap"
+                                   Margin="0,8,0,0" />
+                        <TextBlock Text="{Binding BenchmarkBestText}"
+                                   Foreground="{DynamicResource AccentBrush}"
+                                   FontFamily="Cascadia Mono, Consolas, Microsoft YaHei UI"
+                                   TextWrapping="Wrap"
+                                   Margin="0,8,0,0" />
                     </StackPanel>
                 </Border>
             </StackPanel>

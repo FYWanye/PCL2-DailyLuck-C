@@ -4,16 +4,16 @@ namespace RpCalculator.Core.Tests;
 
 public sealed class StableHashTests
 {
-    // 这些期望值由独立 Python 实现按需求公式计算得到，
-    // 用于锁定 C# 实现的 64 位有符号 long 行为。
+    // 这些期望值由项目根目录 Test.py 独立验证，
+    // 用于锁定 C# 实现的 64 位无符号 ulong 行为。
     [Theory]
-    [InlineData("", -6228671679405222358L)]
-    [InlineData("a", -6228671679405050133L)]
-    [InlineData("test", -6228671684498533668L)]
-    [InlineData("abc", -6228671679307863382L)]
-    [InlineData("hello", -6228671589951204408L)]
-    [InlineData("1234567890", -177760784874330869L)]
-    public void ComputeHash_MatchesKnownVectors(string input, long expected)
+    [InlineData("", 12218072394304329258UL)]
+    [InlineData("a", 12218072394304501483UL)]
+    [InlineData("test", 12218072389211017948UL)]
+    [InlineData("abc", 12218072394401688234UL)]
+    [InlineData("hello", 12218072483758347208UL)]
+    [InlineData("1234567890", 18268983288835220747UL)]
+    public void ComputeHash_MatchesKnownVectors(string input, ulong expected)
     {
         Assert.Equal(expected, StableHash.ComputeHash(input));
     }
@@ -25,7 +25,7 @@ public sealed class StableHashTests
 
         foreach (var sample in samples)
         {
-            long state = StableHash.ContinueHash(5381, sample.AsSpan());
+            ulong state = StableHash.ContinueHash(5381UL, sample.AsSpan());
             Assert.Equal(StableHash.ComputeHash(sample), state ^ StableHash.XorConstant);
         }
     }

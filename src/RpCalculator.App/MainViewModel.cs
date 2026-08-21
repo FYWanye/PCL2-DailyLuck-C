@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using Microsoft.Win32;
@@ -63,6 +64,31 @@ public sealed class MainViewModel : ObservableObject
 
     private CancellationTokenSource? _cts;
 
+    // 性能监控相关状态。
+    private readonly Stopwatch _perfStopwatch = new();
+    private CancellationTokenSource? _perfCts;
+    private CancellationTokenSource? _perfLinkedCts;
+    private long _perfProcessed;
+    private long _lastPerfProcessed;
+    private DateTime _lastPerfSampleTime;
+    private TimeSpan _lastPerfCpu;
+    private long? _perfTotal;
+
+    // 性能基准测试相关状态。
+    private CancellationTokenSource? _benchmarkCts;
+    private Stopwatch? _benchmarkStopwatch;
+    private TopKResult? _benchmarkBest;
+    private string _benchmarkBestText = string.Empty;
+    private bool _isBenchmarkRunning;
+
+    private string _perfCpuText = "0%";
+    private string _perfMemoryText = "0 MB";
+    private string _perfElapsedText = "00:00:00";
+    private string _perfSpeedText = "0 条/秒";
+    private string _perfEtaText = "—";
+    private string _benchmarkResultText = "尚未运行基准测试。";
+    private string _benchmarkStatusText = "点击“开始性能基准测试”以测量当前 CPU 性能。";
+
     public MainViewModel()
     {
         Modes =
@@ -71,13 +97,16 @@ public sealed class MainViewModel : ObservableObject
             new ModeOption(ScanMode.First100Date, "距今最久")
         ];
 
-        StartCommand = new AsyncRelayCommand(_ => StartAsync(), _ => !IsBusy);
+        StartCommand = new AsyncRelayCommand(_ => StartAsync(), _ => !IsBusy && !IsBenchmarkRunning);
         CancelCommand = new RelayCommand(_ => Cancel(), _ => IsBusy);
         BrowseFileCommand = new RelayCommand(_ => BrowseFile());
         ToggleThemeCommand = new RelayCommand(_ => ThemeManager.Toggle());
         CopyResultCommand = new AsyncRelayCommand(_ => CopyResultAsync(), _ => HasResult && !IsBusy);
-        RawComputeCommand = new AsyncRelayCommand(_ => RawComputeAsync(), _ => !RawBusy && !IsBusy);
+        RawComputeCommand = new AsyncRelayCommand(_ => RawComputeAsync(), _ => !RawBusy && !IsBusy && !IsBenchmarkRunning);
         FillRawFromBestCommand = new RelayCommand(_ => FillRawFromBest(), _ => SelectedResult is not null && !RawBusy && !IsBusy);
+        BenchmarkCommand = new AsyncRelayCommand(_ => BenchmarkAsync(), _ => !IsBusy && !IsBenchmarkRunning && !RawBusy);
+        CancelBenchmarkCommand = new RelayCommand(_ => CancelBenchmark(), _ => IsBenchmarkRunning);
+        ShowBenchmarkBestCommand = new RelayCommand(_ => ShowBenchmarkBest(), _ => _benchmarkBest is not null);
     }
 
     public ObservableCollection<string> HundredDates => _hundredDates;
@@ -201,6 +230,7 @@ public sealed class MainViewModel : ObservableObject
                 CopyResultCommand.RaiseCanExecuteChanged();
                 RawComputeCommand.RaiseCanExecuteChanged();
                 FillRawFromBestCommand.RaiseCanExecuteChanged();
+                BenchmarkCommand.RaiseCanExecuteChanged();
             }
         }
     }
@@ -310,6 +340,78 @@ public sealed class MainViewModel : ObservableObject
     public AsyncRelayCommand CopyResultCommand { get; }
     public AsyncRelayCommand RawComputeCommand { get; }
     public RelayCommand FillRawFromBestCommand { get; }
+    public AsyncRelayCommand BenchmarkCommand { get; }
+    public RelayCommand CancelBenchmarkCommand { get; }
+    public RelayCommand ShowBenchmarkBestCommand { get; }
+
+    // ==================== 性能监控 ====================
+
+    public string PerfCpuText
+    {
+        get => _perfCpuText;
+        private set => SetProperty(ref _perfCpuText, value);
+    }
+
+    public string PerfMemoryText
+    {
+        get => _perfMemoryText;
+        private set => SetProperty(ref _perfMemoryText, value);
+    }
+
+    public string PerfElapsedText
+    {
+        get => _perfElapsedText;
+        private set => SetProperty(ref _perfElapsedText, value);
+    }
+
+    public string PerfSpeedText
+    {
+        get => _perfSpeedText;
+        private set => SetProperty(ref _perfSpeedText, value);
+    }
+
+    public string PerfEtaText
+    {
+        get => _perfEtaText;
+        private set => SetProperty(ref _perfEtaText, value);
+    }
+
+    // ==================== 性能基准测试 ====================
+
+    public bool IsBenchmarkRunning
+    {
+        get => _isBenchmarkRunning;
+        private set
+        {
+            if (SetProperty(ref _isBenchmarkRunning, value))
+            {
+                BenchmarkCommand.RaiseCanExecuteChanged();
+                CancelBenchmarkCommand.RaiseCanExecuteChanged();
+                StartCommand.RaiseCanExecuteChanged();
+                RawComputeCommand.RaiseCanExecuteChanged();
+            }
+        }
+    }
+
+    public string BenchmarkResultText
+    {
+        get => _benchmarkResultText;
+        private set => SetProperty(ref _benchmarkResultText, value);
+    }
+
+    public string BenchmarkStatusText
+    {
+        get => _benchmarkStatusText;
+        private set => SetProperty(ref _benchmarkStatusText, value);
+    }
+
+    public string BenchmarkBestText
+    {
+        get => _benchmarkBestText;
+        private set => SetProperty(ref _benchmarkBestText, value);
+    }
+
+    public bool HasBenchmarkBest => _benchmarkBest is not null;
 
     // ==================== 原始计算（独立验算） ====================
 
@@ -343,6 +445,7 @@ public sealed class MainViewModel : ObservableObject
             {
                 RawComputeCommand.RaiseCanExecuteChanged();
                 FillRawFromBestCommand.RaiseCanExecuteChanged();
+                BenchmarkCommand.RaiseCanExecuteChanged();
             }
         }
     }
@@ -515,6 +618,7 @@ public sealed class MainViewModel : ObservableObject
         }
 
         _cts = new CancellationTokenSource();
+        StartPerformanceMonitor(totalCount, _cts.Token);
 
         ResetResult();
         IsIndeterminate = totalCount is null;
@@ -564,6 +668,7 @@ public sealed class MainViewModel : ObservableObject
         }
         finally
         {
+            StopPerformanceMonitor();
             IsBusy = false;
             _cts?.Dispose();
             _cts = null;
@@ -611,6 +716,8 @@ public sealed class MainViewModel : ObservableObject
 
     private void OnProgress(RpProgressInfo info)
     {
+        UpdatePerfProcessed(info.ProcessedCount);
+
         if (info.TotalCount is long total)
         {
             ProgressMaximum = total;
@@ -659,6 +766,260 @@ public sealed class MainViewModel : ObservableObject
                 ? "计算完成。文件中没有有效的识别码。"
                 : "计算完成。";
     }
+
+    // ==================== 性能监控与基准测试 ====================
+
+    private void StartPerformanceMonitor(long? totalCount, CancellationToken ct)
+    {
+        StopPerformanceMonitor();
+
+        _perfTotal = totalCount;
+        _perfProcessed = 0;
+        _lastPerfProcessed = 0;
+        _lastPerfSampleTime = DateTime.UtcNow;
+        _lastPerfCpu = Process.GetCurrentProcess().TotalProcessorTime;
+        _perfStopwatch.Restart();
+
+        _perfCts = new CancellationTokenSource();
+        _perfLinkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, _perfCts.Token);
+        var progress = new Progress<PerfSnapshot>(OnPerfSnapshot);
+
+        _ = Task.Run(() => PerformanceMonitorLoopAsync(_perfLinkedCts.Token, progress), CancellationToken.None);
+    }
+
+    private void StopPerformanceMonitor()
+    {
+        _perfLinkedCts?.Cancel();
+        _perfLinkedCts?.Dispose();
+        _perfLinkedCts = null;
+
+        _perfCts?.Cancel();
+        _perfCts?.Dispose();
+        _perfCts = null;
+    }
+
+    private void UpdatePerfProcessed(long processed)
+    {
+        Interlocked.Exchange(ref _perfProcessed, processed);
+    }
+
+    private async Task PerformanceMonitorLoopAsync(CancellationToken ct, IProgress<PerfSnapshot> progress)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+
+        try
+        {
+            while (await timer.WaitForNextTickAsync(ct))
+            {
+                var now = DateTime.UtcNow;
+                var process = Process.GetCurrentProcess();
+                var cpu = process.TotalProcessorTime;
+                var wall = now - _lastPerfSampleTime;
+                var cpuDelta = cpu - _lastPerfCpu;
+
+                var cpuPercent = wall.TotalSeconds > 0
+                    ? cpuDelta.TotalSeconds / wall.TotalSeconds / Environment.ProcessorCount * 100.0
+                    : 0.0;
+                var memoryMb = process.WorkingSet64 / 1024.0 / 1024.0;
+                var processed = Interlocked.Read(ref _perfProcessed);
+                var speed = wall.TotalSeconds > 0
+                    ? (processed - _lastPerfProcessed) / wall.TotalSeconds
+                    : 0.0;
+
+                _lastPerfProcessed = processed;
+                _lastPerfSampleTime = now;
+                _lastPerfCpu = cpu;
+
+                double? etaSeconds = null;
+                if (_perfTotal is long total && speed > 0)
+                {
+                    etaSeconds = (total - processed) / speed;
+                }
+
+                progress.Report(new PerfSnapshot(cpuPercent, memoryMb, _perfStopwatch.Elapsed, speed, etaSeconds));
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private void OnPerfSnapshot(PerfSnapshot snapshot)
+    {
+        PerfCpuText = $"{snapshot.CpuPercent:F1}%";
+        PerfMemoryText = $"{snapshot.MemoryMb:F0} MB";
+        PerfElapsedText = snapshot.Elapsed.ToString(@"hh\:mm\:ss");
+        PerfSpeedText = $"{snapshot.Speed:N0} 条/秒";
+        PerfEtaText = snapshot.EtaSeconds is double eta
+            ? TimeSpan.FromSeconds(eta).ToString(@"hh\:mm\:ss")
+            : "—";
+    }
+
+    private async Task BenchmarkAsync()
+    {
+        if (IsBusy || IsBenchmarkRunning || RawBusy)
+        {
+            return;
+        }
+
+        const long benchmarkCount = 1_000_000L;
+        const int benchmarkDays = 1780;
+
+        var info = new DateRangeInfo(DateTime.Today, benchmarkDays);
+        var ids = new RandomIdGenerator().TakeLong(benchmarkCount);
+
+        _benchmarkCts = new CancellationTokenSource();
+        _benchmarkStopwatch = Stopwatch.StartNew();
+        _benchmarkBest = null;
+        BenchmarkBestText = string.Empty;
+        BenchmarkResultText = "基准测试运行中…";
+        BenchmarkStatusText = $"正在执行 {benchmarkCount:N0} 个识别码 × {benchmarkDays} 天完整计算…";
+        IsBenchmarkRunning = true;
+        StartPerformanceMonitor(benchmarkCount, _benchmarkCts.Token);
+
+        var cts = _benchmarkCts!;
+        IProgress<long> progress = new Progress<long>(OnBenchmarkProgress);
+        var processed = 0L;
+        var bestLock = new object();
+        TopKResult? best = null;
+
+        try
+        {
+            await Task.Run(
+                () =>
+                {
+                    var options = new ParallelOptions
+                    {
+                        CancellationToken = cts.Token,
+                        MaxDegreeOfParallelism = Environment.ProcessorCount
+                    };
+
+                    // 基准测试不使用 Top-K 剪枝或二次扫描：
+                    // 每个识别码只完整执行一次 ScanCore（逐日计算整个窗口）。
+                    Parallel.ForEach(ids, options, id =>
+                    {
+                        cts.Token.ThrowIfCancellationRequested();
+
+                        var scan = RpScanner.ScanCore(id, info);
+                        if (scan.MaxGap > 0)
+                        {
+                            lock (bestLock)
+                            {
+                                if (best is null || scan.MaxGap > best.KeyMetric)
+                                {
+                                    best = new TopKResult
+                                    {
+                                        Id = id,
+                                        Mode = ScanMode.MaxGap,
+                                        KeyMetric = scan.MaxGap,
+                                        HundredCount = scan.HundredCount,
+                                        HundredDates = Array.Empty<DateTime>()
+                                    };
+                                }
+                            }
+                        }
+
+                        var current = Interlocked.Increment(ref processed);
+                        UpdatePerfProcessed(current);
+
+                        if (current % 10_000 == 0)
+                        {
+                            progress.Report(current);
+                        }
+                    });
+                },
+                CancellationToken.None);
+
+            _benchmarkStopwatch.Stop();
+            var elapsed = _benchmarkStopwatch.Elapsed;
+            var avgSpeed = elapsed.TotalSeconds > 0 ? processed / elapsed.TotalSeconds : 0.0;
+            var multiplier = avgSpeed / 90_000.0;
+            var rating = GetPerformanceRating(avgSpeed);
+
+            BenchmarkResultText =
+                $"总耗时：{FormatBenchmarkTime(elapsed)}\n" +
+                $"平均处理速度：{avgSpeed:N0} 条/秒\n" +
+                $"等效性能倍数：{multiplier:F2}x\n" +
+                $"CPU 基准跑分：{avgSpeed:N0}\n" +
+                $"性能评级：{rating}";
+            BenchmarkStatusText = "基准测试完成。";
+            _benchmarkBest = best;
+            ShowBenchmarkBestCommand.RaiseCanExecuteChanged();
+        }
+        catch (OperationCanceledException)
+        {
+            _benchmarkStopwatch!.Stop();
+            var elapsed = _benchmarkStopwatch.Elapsed;
+            BenchmarkResultText = "基准测试未完成";
+            BenchmarkStatusText = $"已取消。已处理 {processed:N0} 条，耗时 {FormatBenchmarkTime(elapsed)}。";
+        }
+        catch (Exception ex)
+        {
+            _benchmarkStopwatch?.Stop();
+            BenchmarkResultText = "基准测试出错";
+            BenchmarkStatusText = $"错误：{ex.Message}";
+        }
+        finally
+        {
+            StopPerformanceMonitor();
+            IsBenchmarkRunning = false;
+            _benchmarkCts?.Dispose();
+            _benchmarkCts = null;
+        }
+    }
+
+    private void OnBenchmarkProgress(long processed)
+    {
+        BenchmarkStatusText = $"基准测试进行中：{processed:N0} / 1,000,000";
+    }
+
+    private void CancelBenchmark()
+    {
+        _benchmarkCts?.Cancel();
+        BenchmarkStatusText = "正在取消基准测试…";
+    }
+
+    private void ShowBenchmarkBest()
+    {
+        if (_benchmarkBest is null)
+        {
+            return;
+        }
+
+        BenchmarkBestText = $"最佳识别码：{_benchmarkBest.Id}（最大间隔 {_benchmarkBest.KeyMetric} 天，100分 {_benchmarkBest.HundredCount} 次）";
+    }
+
+    private static string FormatBenchmarkTime(TimeSpan time)
+    {
+        return time.ToString(@"hh\:mm\:ss\.fff");
+    }
+
+    private static string GetPerformanceRating(double speed)
+    {
+        if (speed < 90_000)
+        {
+            return "较慢";
+        }
+
+        if (speed < 150_000)
+        {
+            return "普通";
+        }
+
+        if (speed < 240_000)
+        {
+            return "不错";
+        }
+
+        if (speed < 360_000)
+        {
+            return "很快";
+        }
+
+        return "极快";
+    }
+
+    private sealed record PerfSnapshot(double CpuPercent, double MemoryMb, TimeSpan Elapsed, double Speed, double? EtaSeconds);
 
     private void UpdateSelectedResultDetail()
     {

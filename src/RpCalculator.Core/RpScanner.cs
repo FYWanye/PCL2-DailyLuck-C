@@ -27,26 +27,33 @@ public static class RpScanner
     private const string SecondSeedSuffix = "kjhg";
 
     /// <summary>第一个种子的固定前缀哈希状态，所有识别码/日期复用。</summary>
-    private static readonly long FirstSeedPrefixState =
-        StableHash.ContinueHash(5381, FirstSeedPrefix.AsSpan());
+    private static readonly ulong FirstSeedPrefixState =
+        StableHash.ContinueHash(5381UL, FirstSeedPrefix.AsSpan());
 
     /// <summary>
     /// 判断两个种子哈希对应的当日人品是否为 100 分。
     /// 与 Test.py 的 <c>score_for_date</c> 中 <c>rounded &gt;= 970</c> 等价。
     /// </summary>
-    public static bool IsHundredPoint(long h1, long h2)
+    public static bool IsHundredPoint(ulong h1, ulong h2)
     {
-        // Python stable_hash 返回 64 位无符号整数；C# long 只保存相同位模式，
-        // 参与浮点运算前必须按无符号数解释。
-        ulong u1 = unchecked((ulong)h1);
-        ulong u2 = unchecked((ulong)h2);
-
-        double firstHashValue = u1 / 3.0;
-        double secondHashValue = u2 / 3.0;
+        double firstHashValue = (double)h1 / 3.0;
+        double secondHashValue = (double)h2 / 3.0;
         double raw = Math.Abs((firstHashValue + secondHashValue) / 527.0) % 1001.0;
-        int rounded = (int)Math.Round(raw, MidpointRounding.ToEven);
 
-        return rounded >= 970;
+        // Python 的 h1 / 3 是对 64 位整数做“真除法”，返回正确舍入的 double；
+        // C# 直接 (double)h1 / 3.0 会在极端边界少 1 个 ulp，导致 100 分漏判。
+        // 这里先用快速 double 路径；只有在 970 阈值或 0/1001 回绕边界附近，
+        // 才用 decimal 精确模拟 Python 的整数真除法，保证与 Test.py 完全一致。
+        if (raw < 10.0 || raw > 990.0 || (raw >= 960.0 && raw <= 980.0))
+        {
+            firstHashValue = (double)((decimal)h1 / 3m);
+            secondHashValue = (double)((decimal)h2 / 3m);
+            raw = Math.Abs((firstHashValue + secondHashValue) / 527.0) % 1001.0;
+        }
+
+        double rounded = Math.Round(raw, MidpointRounding.ToEven);
+
+        return rounded >= 970.0;
     }
 
     /// <summary>
@@ -55,7 +62,7 @@ public static class RpScanner
     public static RpCoreScanResult ScanCore(string id, DateRangeInfo info)
     {
         // 第二个种子前缀只算一次：QWERTY + id + 0*8&6。
-        long stateSecondId = GetSecondSeedIdState(id);
+        ulong stateSecondId = GetSecondSeedIdState(id);
 
         var last100Index = -1;
         var maxGap = 0;
@@ -66,14 +73,14 @@ public static class RpScanner
             foreach (var entry in yearGroup.Entries)
             {
                 // 种子1：asdfgbn + dayOfYear + (12#3$45 + year + IUY)
-                long state = StableHash.ContinueHash(FirstSeedPrefixState, entry.DayOfYearString.AsSpan());
+                ulong state = StableHash.ContinueHash(FirstSeedPrefixState, entry.DayOfYearString.AsSpan());
                 state = StableHash.ContinueHash(state, yearGroup.FirstSeedSuffix.AsSpan());
-                long h1 = unchecked(state ^ StableHash.XorConstant);
+                ulong h1 = state ^ StableHash.XorConstant;
 
                 // 种子2：QWERTY + id + 0*8&6 + day + kjhg
-                long state2 = StableHash.ContinueHash(stateSecondId, entry.DayString.AsSpan());
+                ulong state2 = StableHash.ContinueHash(stateSecondId, entry.DayString.AsSpan());
                 state2 = StableHash.ContinueHash(state2, SecondSeedSuffix.AsSpan());
-                long h2 = unchecked(state2 ^ StableHash.XorConstant);
+                ulong h2 = state2 ^ StableHash.XorConstant;
 
                 if (!IsHundredPoint(h1, h2))
                 {
@@ -107,7 +114,7 @@ public static class RpScanner
     /// <param name="visitDay">测试用回调：每扫描一天调用一次（可选）。</param>
     public static RpFirst100ScanResult ScanFirst100(string id, DateRangeInfo info, Action<int>? visitDay = null)
     {
-        long stateSecondId = GetSecondSeedIdState(id);
+        ulong stateSecondId = GetSecondSeedIdState(id);
 
         foreach (var yearGroup in info.YearGroups)
         {
@@ -115,13 +122,13 @@ public static class RpScanner
             {
                 visitDay?.Invoke(entry.DateIndex);
 
-                long state = StableHash.ContinueHash(FirstSeedPrefixState, entry.DayOfYearString.AsSpan());
+                ulong state = StableHash.ContinueHash(FirstSeedPrefixState, entry.DayOfYearString.AsSpan());
                 state = StableHash.ContinueHash(state, yearGroup.FirstSeedSuffix.AsSpan());
-                long h1 = unchecked(state ^ StableHash.XorConstant);
+                ulong h1 = state ^ StableHash.XorConstant;
 
-                long state2 = StableHash.ContinueHash(stateSecondId, entry.DayString.AsSpan());
+                ulong state2 = StableHash.ContinueHash(stateSecondId, entry.DayString.AsSpan());
                 state2 = StableHash.ContinueHash(state2, SecondSeedSuffix.AsSpan());
-                long h2 = unchecked(state2 ^ StableHash.XorConstant);
+                ulong h2 = state2 ^ StableHash.XorConstant;
 
                 if (IsHundredPoint(h1, h2))
                 {
@@ -138,7 +145,7 @@ public static class RpScanner
     /// </summary>
     public static RpScanResult ScanWithDates(string id, DateRangeInfo info)
     {
-        long stateSecondId = GetSecondSeedIdState(id);
+        ulong stateSecondId = GetSecondSeedIdState(id);
 
         var hundredDates = new List<DateTime>();
         var last100Index = -1;
@@ -148,13 +155,13 @@ public static class RpScanner
         {
             foreach (var entry in yearGroup.Entries)
             {
-                long state = StableHash.ContinueHash(FirstSeedPrefixState, entry.DayOfYearString.AsSpan());
+                ulong state = StableHash.ContinueHash(FirstSeedPrefixState, entry.DayOfYearString.AsSpan());
                 state = StableHash.ContinueHash(state, yearGroup.FirstSeedSuffix.AsSpan());
-                long h1 = unchecked(state ^ StableHash.XorConstant);
+                ulong h1 = state ^ StableHash.XorConstant;
 
-                long state2 = StableHash.ContinueHash(stateSecondId, entry.DayString.AsSpan());
+                ulong state2 = StableHash.ContinueHash(stateSecondId, entry.DayString.AsSpan());
                 state2 = StableHash.ContinueHash(state2, SecondSeedSuffix.AsSpan());
-                long h2 = unchecked(state2 ^ StableHash.XorConstant);
+                ulong h2 = state2 ^ StableHash.XorConstant;
 
                 if (!IsHundredPoint(h1, h2))
                 {
@@ -189,9 +196,9 @@ public static class RpScanner
     /// 预计算第二个种子的固定前缀哈希状态：
     /// <c>QWERTY + id + 0*8&6</c>。
     /// </summary>
-    private static long GetSecondSeedIdState(string id)
+    private static ulong GetSecondSeedIdState(string id)
     {
-        long state = StableHash.ContinueHash(5381, SecondSeedPrefix.AsSpan());
+        ulong state = StableHash.ContinueHash(5381UL, SecondSeedPrefix.AsSpan());
         state = StableHash.ContinueHash(state, id.AsSpan());
         state = StableHash.ContinueHash(state, SecondSeedMiddle.AsSpan());
         return state;

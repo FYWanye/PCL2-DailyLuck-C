@@ -43,15 +43,14 @@ public sealed class RawVerifierTests
     }
 
     [Fact]
-    public void RawVerifier_HandlesLongMinValueWithoutThrowing()
+    public void RawVerifier_HandlesUInt64HashesWithoutThrowing()
     {
-        // 与 HundredPointTests 相同的边界用例：long.MinValue 不能让原始计算抛异常。
-        // 这里我们只确认“调用一次原始计算不会因为 long.MinValue 哈希而崩溃”。
-        // 不要求具体结果，只要求不抛 OverflowException。
+        // 哈希已切换为 ulong，边界值不应让原始计算抛异常。
+        // 这里只确认“调用一次原始计算不会因为 64 位无符号哈希而崩溃”。
         var ex = Record.Exception(() =>
         {
             // 用一个 16 位十六进制识别码跑 1 天——具体 h1/h2 由算法决定，
-            // 关键是内部不能因为 Math.Abs 溢出。
+            // 关键是内部不能因为浮点/哈希计算溢出。
             _ = RawVerifier.CheckId("0000-0000-0000-0001", new DateTime(2024, 1, 1), 1);
         });
         Assert.Null(ex);
