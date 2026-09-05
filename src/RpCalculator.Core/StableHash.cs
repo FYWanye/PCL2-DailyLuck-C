@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Numerics;
 
 namespace RpCalculator.Core;
@@ -62,9 +61,45 @@ public static class StableHash
         }
 
         // 注意：不能直接 (double)quotient——.NET 的 BigInteger→double 舍入与 Python 的
-        // int→float 不完全一致，在边界会差 1 ulp。这里通过十进制字符串解析得到与 Python
-        // 一致的“正确舍入到最近 double”。此方法只会在边界危险区被调用。
-        var parsed = double.Parse(quotient.ToString(), CultureInfo.InvariantCulture);
-        return parsed / scale;
+        // int→float 不完全一致，在边界会差 1 ulp。这里按 IEEE 位级构造 double，
+        // 得到与 Python 一致的“正确舍入到最近 double”。此方法只会在边界危险区被调用。
+        return BigIntegerToDouble(quotient) / scale;
+    }
+
+    /// <summary>把正 BigInteger 按“最近偶数”正确舍入成 double（等价于 Python int→float）。</summary>
+    private static double BigIntegerToDouble(BigInteger value)
+    {
+        if (value.IsZero)
+        {
+            return 0.0;
+        }
+
+        var bits = (int)value.GetBitLength();
+        if (bits <= 53)
+        {
+            return (double)value;
+        }
+
+        var shift = bits - 53;
+        var significand = value >> shift;
+        var remainder = value & ((BigInteger.One << shift) - 1);
+        var half = BigInteger.One << (shift - 1);
+
+        if (remainder > half || (remainder == half && !significand.IsEven))
+        {
+            significand += 1;
+        }
+
+        if (significand.GetBitLength() > 53)
+        {
+            significand >>= 1;
+            bits++;
+        }
+
+        var exponent = bits - 1;
+        var biasedExponent = exponent + 1023;
+        var significandPart = (long)(significand - (BigInteger.One << 52));
+        var rawBits = (long)biasedExponent << 52 | significandPart;
+        return BitConverter.Int64BitsToDouble(rawBits);
     }
 }
