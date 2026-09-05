@@ -136,6 +136,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: 检出代码（读取 CHANGELOG.md）
+        uses: actions/checkout@v4
+
       - name: 解析 Release 信息
         id: version
         shell: bash
@@ -164,6 +167,21 @@ jobs:
           echo "release=$RELEASE" >> "$GITHUB_OUTPUT"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
+      - name: 准备 Release Notes
+        id: notes
+        shell: bash
+        run: |
+          TAG="${{ steps.version.outputs.release }}"
+          # 提取 CHANGELOG.md 中 “## [vX.Y.Z]” 小节作为 Release Notes。
+          awk -v tag="$TAG" 'index($0, "## [" tag "]") == 1 { insec=1; next } insec && /^## / { exit } insec { print }' CHANGELOG.md > release-notes.md
+
+          if [ -s release-notes.md ]; then
+            echo "Using changelog section for $TAG"
+          else
+            echo "No changelog section found for $TAG; will use generated notes."
+            rm -f release-notes.md
+          fi
+
       - name: 下载 x64 产物
         uses: actions/download-artifact@v4
         with:
@@ -189,15 +207,27 @@ jobs:
 
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo "Release $TAG already exists, updating..."
-            gh release edit "$TAG" --title "$RELEASE" --repo "$GITHUB_REPOSITORY"
+            if [ -f release-notes.md ]; then
+              gh release edit "$TAG" --title "$RELEASE" --notes-file release-notes.md --repo "$GITHUB_REPOSITORY"
+            else
+              gh release edit "$TAG" --title "$RELEASE" --repo "$GITHUB_REPOSITORY"
+            fi
             if [ ${#files[@]} -gt 0 ]; then
               gh release upload "$TAG" "${files[@]}" --clobber --repo "$GITHUB_REPOSITORY"
             fi
           else
             echo "Creating release $TAG ($RELEASE)..."
-            gh release create "$TAG" "${files[@]}" \
-              --title "$RELEASE" \
-              --generate-notes \
-              --target "$GITHUB_SHA" \
-              --repo "$GITHUB_REPOSITORY"
+            if [ -f release-notes.md ]; then
+              gh release create "$TAG" "${files[@]}" \
+                --title "$RELEASE" \
+                --notes-file release-notes.md \
+                --target "$GITHUB_SHA" \
+                --repo "$GITHUB_REPOSITORY"
+            else
+              gh release create "$TAG" "${files[@]}" \
+                --title "$RELEASE" \
+                --generate-notes \
+                --target "$GITHUB_SHA" \
+                --repo "$GITHUB_REPOSITORY"
+            fi
           fi
