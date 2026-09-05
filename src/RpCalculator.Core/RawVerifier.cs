@@ -146,13 +146,20 @@ public static class RawVerifier
         double secondHashValue = (double)h2 / 3.0;
         double raw = Math.Abs((firstHashValue + secondHashValue) / 527.0) % 1001.0;
 
-        // 与 RpScanner.IsHundredPoint 相同：在阈值/回绕边界附近用精确方法
-        // 模拟 Python 的整数真除法 h1 / 3，避免误判 100 分。
+        // 与 RpScanner.IsHundredPoint 相同：在阈值/回绕边界附近先用近似复核，
+        // 只有贴近边界时才走精确方法模拟 Python 的整数真除法 h1 / 3。
         if (raw < 10.0 || raw > 990.0 || (raw >= 960.0 && raw <= 980.0))
         {
-            firstHashValue = StableHash.DivideBy3ToDouble(h1);
-            secondHashValue = StableHash.DivideBy3ToDouble(h2);
+            firstHashValue = StableHash.DivideBy3Approx(h1);
+            secondHashValue = StableHash.DivideBy3Approx(h2);
             raw = Math.Abs((firstHashValue + secondHashValue) / 527.0) % 1001.0;
+
+            if (raw < 2.0 || raw > 998.0 || (raw >= 968.0 && raw <= 972.0))
+            {
+                firstHashValue = StableHash.DivideBy3ToDouble(h1);
+                secondHashValue = StableHash.DivideBy3ToDouble(h2);
+                raw = Math.Abs((firstHashValue + secondHashValue) / 527.0) % 1001.0;
+            }
         }
 
         double rounded = Math.Round(raw, MidpointRounding.ToEven);

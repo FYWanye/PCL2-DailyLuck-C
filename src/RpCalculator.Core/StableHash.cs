@@ -50,6 +50,15 @@ public static class StableHash
     /// 这里用 53 位定点 + UInt128 做一次正确舍入，无 BigInteger 分配。
     /// 只应在边界危险区调用。
     /// </summary>
+    /// <summary>
+    /// 快速近似 h/3：整数商 + 余数。多数情况下与 Python 完全一致，
+    /// 只在极少数 1-ulp 边界上有差异；调用方应在接近 970/1000/0 时再用精确方法复核。
+    /// </summary>
+    internal static double DivideBy3Approx(ulong value)
+    {
+        return (double)(value / 3) + (value % 3) / 3.0;
+    }
+
     internal static double DivideBy3ToDouble(ulong value)
     {
         const double scale = 9007199254740992.0; // 2^53
