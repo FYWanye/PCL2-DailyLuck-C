@@ -36,8 +36,7 @@ public static class StableHash
     {
         foreach (char c in text)
         {
-            // 等价于 hash * 33 ^ c（由于 (h<<5) ^ h = h*33 在无符号位模式下），
-            // 这里保持需求原样写法。
+            // 与 Test.py / RawVerifier.StableHashOriginal 完全一致的原位写法。
             hash = unchecked((hash << 5) ^ hash ^ c);
         }
 
@@ -48,49 +47,63 @@ public static class StableHash
     /// 精确模拟 Python 的 <c>h / 3</c>（整数真除法 -> 最近 double）。
     /// C# 的 <c>(double)h / 3.0</c> 会先把 h 舍入成 double 再做除法，属于双重舍入，
     /// 在 970/1000/0 边界附近可能与 Python 差 1 个 ulp，导致 100 分误判。
-    /// 这里用 53 位定点数做一次正确舍入；只应在边界危险区调用。
+    /// 这里用 53 位定点 + UInt128 做一次正确舍入，无 BigInteger 分配。
+    /// 只应在边界危险区调用。
     /// </summary>
     internal static double DivideBy3ToDouble(ulong value)
     {
         const double scale = 9007199254740992.0; // 2^53
-        var numerator = new BigInteger(value) << 53;
-        var quotient = BigInteger.DivRem(numerator, 3, out var remainder);
-        if (remainder * 2 >= 3)
+        var numerator = (UInt128)value << 53;
+        var quotient = numerator / 3;
+        var remainder = numerator % 3;
+
+        // remainder 只可能是 0/1/2，remainder * 2 >= 3 等价于 remainder >= 2。
+        if (remainder >= 2)
         {
             quotient += 1;
         }
 
-        // 注意：不能直接 (double)quotient——.NET 的 BigInteger→double 舍入与 Python 的
-        // int→float 不完全一致，在边界会差 1 ulp。这里按 IEEE 位级构造 double，
-        // 得到与 Python 一致的“正确舍入到最近 double”。此方法只会在边界危险区被调用。
-        return BigIntegerToDouble(quotient) / scale;
+        return UInt128ToDouble(quotient) / scale;
     }
 
-    /// <summary>把正 BigInteger 按“最近偶数”正确舍入成 double（等价于 Python int→float）。</summary>
-    private static double BigIntegerToDouble(BigInteger value)
+    private static int BitLength(UInt128 value)
     {
-        if (value.IsZero)
+        var upper = (ulong)(value >> 64);
+        if (upper != 0)
+        {
+            return 128 - BitOperations.LeadingZeroCount(upper);
+        }
+
+        var lower = (ulong)(value & ulong.MaxValue);
+        return lower == 0 ? 0 : 64 - BitOperations.LeadingZeroCount(lower);
+    }
+
+    /// <summary>把正 UInt128 按“最近偶数”正确舍入成 double（等价于 Python int→float）。</summary>
+    private static double UInt128ToDouble(UInt128 value)
+    {
+        if (value == 0)
         {
             return 0.0;
         }
 
-        var bits = (int)value.GetBitLength();
+        var bits = BitLength(value);
         if (bits <= 53)
         {
-            return (double)value;
+            return (double)(ulong)value;
         }
 
         var shift = bits - 53;
         var significand = value >> shift;
-        var remainder = value & ((BigInteger.One << shift) - 1);
-        var half = BigInteger.One << (shift - 1);
+        var mask = (UInt128.One << shift) - 1;
+        var remainder = value & mask;
+        var half = UInt128.One << (shift - 1);
 
-        if (remainder > half || (remainder == half && !significand.IsEven))
+        if (remainder > half || (remainder == half && (significand & 1) == 1))
         {
             significand += 1;
         }
 
-        if (significand.GetBitLength() > 53)
+        if (BitLength(significand) > 53)
         {
             significand >>= 1;
             bits++;
@@ -98,7 +111,7 @@ public static class StableHash
 
         var exponent = bits - 1;
         var biasedExponent = exponent + 1023;
-        var significandPart = (long)(significand - (BigInteger.One << 52));
+        var significandPart = (long)(significand - (UInt128.One << 52));
         var rawBits = (long)biasedExponent << 52 | significandPart;
         return BitConverter.Int64BitsToDouble(rawBits);
     }
