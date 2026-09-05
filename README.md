@@ -125,7 +125,7 @@ dotnet test RpCalculator.sln -c Release
 2. Release 构建
 3. 单元测试
 4. 发布 Windows x64 / arm64 自包含程序
-5. 生成 MSI 安装包 + 绿色版 zip
+5. 生成单文件 EXE + MSI 安装包 + 绿色版 zip
 6. 创建 GitHub Release 并附加产物
 
 Release 标题和附件名会统一显示为 `v<版本>`：

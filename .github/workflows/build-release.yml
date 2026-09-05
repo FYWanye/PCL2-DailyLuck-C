@@ -100,8 +100,17 @@ jobs:
       - name: 运行单元测试
         run: dotnet test RpCalculator.sln -c Release --no-build --no-restore
 
-      - name: 发布 WinForms 应用（${{ matrix.rid }} 自包含多文件目录）
+      - name: 发布 WinForms 多文件目录（${{ matrix.rid }}，用于 MSI/zip）
         run: dotnet publish src/RpCalculator.App/RpCalculator.App.csproj -c Release -r ${{ matrix.rid }} --self-contained true -p:PublishSingleFile=false -p:DebugType=embedded -o artifacts/app
+
+      - name: 发布单文件 EXE（${{ matrix.rid }}）
+        run: dotnet publish src/RpCalculator.App/RpCalculator.App.csproj -c Release -r ${{ matrix.rid }} --self-contained true -p:PublishSingleFile=true -p:DebugType=embedded -o artifacts/exe
+
+      - name: 整理单文件 EXE 产物名
+        shell: pwsh
+        run: |
+          $release = "${{ steps.version.outputs.release }}"
+          Copy-Item artifacts/exe/RpCalculator.App.exe "artifacts/RpCalculator-$release-${{ matrix.artifact }}.exe" -Force
 
       - name: 生成 WiX 安装包源
         run: python installer/generate_wix.py --publish-dir artifacts/app --out-wxs artifacts/installer.wxs --out-wxl artifacts/installer.wxl --version ${{ steps.version.outputs.msi }}
@@ -128,6 +137,7 @@ jobs:
           path: |
             artifacts/RpCalculator-Setup-${{ matrix.artifact }}.msi
             artifacts/RpCalculator-${{ steps.version.outputs.release }}-${{ matrix.artifact }}.zip
+            artifacts/RpCalculator-${{ steps.version.outputs.release }}-${{ matrix.artifact }}.exe
           if-no-files-found: error
 
   release:
@@ -202,8 +212,8 @@ jobs:
           TAG="${{ steps.version.outputs.tag }}"
           RELEASE="${{ steps.version.outputs.release }}"
 
-          # 收集所有 .msi / .zip
-          mapfile -d '' files < <(find release -type f \( -name '*.msi' -o -name '*.zip' \) -print0)
+          # 收集所有 .msi / .zip / .exe
+          mapfile -d '' files < <(find release -type f \( -name '*.msi' -o -name '*.zip' -o -name '*.exe' \) -print0)
 
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo "Release $TAG already exists, updating..."
