@@ -847,24 +847,32 @@ public sealed class MainForm : AntdUI.BorderlessForm
             BackColor = Color.Transparent,
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 6,
+            RowCount = 7,
             Padding = new Padding(0)
         };
-        body.RowStyles.Add(new RowStyle(SizeType.Absolute, 110));
+
+        // 高清图标区 / 标题 / 副标题 / 简介 / 快捷操作 / 提示 / 弹性留白
+        body.RowStyles.Add(new RowStyle(SizeType.Absolute, 136));
         body.RowStyles.Add(new RowStyle(SizeType.Absolute, 62));
-        body.RowStyles.Add(new RowStyle(SizeType.Absolute, 46));
-        body.RowStyles.Add(new RowStyle(SizeType.Absolute, 92));
+        body.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
+        body.RowStyles.Add(new RowStyle(SizeType.Absolute, 76));
         body.RowStyles.Add(new RowStyle(SizeType.Absolute, 56));
+        body.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
         body.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
+        // 高清图标：使用 Assets/app-256.png（256×256），比从 ICO 默认读取的 32×32 更清晰。
         var iconBox = new PictureBox
         {
-            Dock = DockStyle.Fill,
+            Size = new Size(132, 132),
+            Anchor = AnchorStyles.None,
             SizeMode = PictureBoxSizeMode.Zoom,
             BackColor = Color.Transparent
         };
         var appIcon = LoadAppIconImage();
-        if (appIcon is not null) iconBox.Image = appIcon;
+        if (appIcon is not null)
+        {
+            iconBox.Image = appIcon;
+        }
         body.Controls.Add(iconBox, 0, 0);
 
         var title = new AntdUI.Label
@@ -873,7 +881,7 @@ public sealed class MainForm : AntdUI.BorderlessForm
             Dock = DockStyle.Fill,
             AutoSize = false,
             TextAlign = ContentAlignment.MiddleCenter,
-            Font = new Font(AppleTheme.FontFamily, 22F, FontStyle.Bold)
+            Font = new Font(AppleTheme.FontFamily, 24F, FontStyle.Bold)
         };
         body.Controls.Add(title, 0, 1);
 
@@ -886,6 +894,7 @@ public sealed class MainForm : AntdUI.BorderlessForm
             ForeColor = DesignTokens.TextSecondaryColor(_isDark),
             Font = new Font(AppleTheme.FontFamily, 12F)
         };
+        _captionLabels.Add(subtitle);
         body.Controls.Add(subtitle, 0, 2);
 
         var desc = new AntdUI.Label
@@ -896,21 +905,57 @@ public sealed class MainForm : AntdUI.BorderlessForm
             TextAlign = ContentAlignment.TopCenter,
             TextMultiLine = true,
             ForeColor = DesignTokens.TextSecondaryColor(_isDark),
-            Font = new Font(AppleTheme.FontFamily, 10F),
-            Padding = new Padding(40, 12, 40, 0)
+            Font = new Font(AppleTheme.FontFamily, 10.5F),
+            Padding = new Padding(60, 14, 60, 0)
         };
+        _captionLabels.Add(desc);
         body.Controls.Add(desc, 0, 3);
+
+        // 快捷入口：让欢迎页不只是静态展示，也能一键进入常用功能。
+        var actionRow = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            BackColor = Color.Transparent,
+            ColumnCount = 3,
+            RowCount = 1,
+            Padding = new Padding(40, 0, 40, 0)
+        };
+        actionRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.33F));
+        actionRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.33F));
+        actionRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.33F));
+        actionRow.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+
+        var startButton = CreateButton("开始计算", () => ShowSection(1), primary: true);
+        startButton.AutoSize = false;
+        startButton.Size = new Size(132, 40);
+        startButton.Anchor = AnchorStyles.None;
+
+        var benchmarkButton = CreateButton("性能测试", () => ShowSection(4));
+        benchmarkButton.AutoSize = false;
+        benchmarkButton.Size = new Size(132, 40);
+        benchmarkButton.Anchor = AnchorStyles.None;
+
+        var aboutButton = CreateButton("关于项目", () => ShowSection(5));
+        aboutButton.AutoSize = false;
+        aboutButton.Size = new Size(132, 40);
+        aboutButton.Anchor = AnchorStyles.None;
+
+        actionRow.Controls.Add(startButton, 0, 0);
+        actionRow.Controls.Add(benchmarkButton, 1, 0);
+        actionRow.Controls.Add(aboutButton, 2, 0);
+        body.Controls.Add(actionRow, 0, 4);
 
         var hint = new AntdUI.Label
         {
-            Text = "从左侧导航选择功能开始使用，或直接点击底部“开始计算”。",
+            Text = "也可以从左侧导航进入功能页，或直接点击底部“开始计算”。",
             Dock = DockStyle.Fill,
             AutoSize = false,
             TextAlign = ContentAlignment.MiddleCenter,
             ForeColor = DesignTokens.TextSecondaryColor(_isDark),
-            Font = new Font(AppleTheme.FontFamily, 10F)
+            Font = new Font(AppleTheme.FontFamily, 9.5F)
         };
-        body.Controls.Add(hint, 0, 4);
+        _captionLabels.Add(hint);
+        body.Controls.Add(hint, 0, 5);
 
         card.Controls.Add(body);
         return card;
@@ -961,6 +1006,13 @@ public sealed class MainForm : AntdUI.BorderlessForm
     {
         try
         {
+            // 欢迎页优先使用高清 256×256 PNG，比从 ico 读取的 32×32 更清晰。
+            var pngPath = Path.Combine(AppContext.BaseDirectory, "Assets", "app-256.png");
+            if (File.Exists(pngPath))
+            {
+                return Image.FromFile(pngPath);
+            }
+
             var iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "app.ico");
             if (File.Exists(iconPath))
             {

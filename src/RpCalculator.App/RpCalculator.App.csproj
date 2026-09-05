@@ -25,9 +25,10 @@
     <PackageReference Include="AntdUI" Version="2.4.6" />
   </ItemGroup>
 
-  <!-- 图标用于 EXE 资源（ApplicationIcon）。 -->
+  <!-- 图标用于 EXE 资源（ApplicationIcon）。app-256.png 用于欢迎页高清展示。 -->
   <ItemGroup>
     <None Include="Assets\app.ico" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\app-256.png" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <!--
