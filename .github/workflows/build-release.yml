@@ -48,7 +48,7 @@ jobs:
       - name: 运行单元测试
         run: dotnet test RpCalculator.sln -c Release --no-build --no-restore
 
-      - name: 发布 WPF 应用（win-x64 自包含）
+      - name: 发布 WinForms 应用（win-x64 自包含）
         # 注意：不能带 --no-restore——restore 未指定 RID，不会生成 win-x64 的资产文件；
         # publish 需要自行还原 win-x64 runtime pack（增量还原，开销很小）。
         run: dotnet publish src/RpCalculator.App/RpCalculator.App.csproj -c Release -r win-x64 --self-contained true -o artifacts/app

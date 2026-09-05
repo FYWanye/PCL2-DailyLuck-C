@@ -1,0 +1,15 @@
+{
+  "name": "rpcalculator-design",
+  "private": true,
+  "version": "0.1.0",
+  "description": "DESIGN.md visual identity tooling for RpCalculator (WinForms + AntdUI).",
+  "scripts": {
+    "design:lint": "design.md lint DESIGN.md",
+    "design:spec": "design.md spec",
+    "design:export:tailwind": "design.md export --format tailwind DESIGN.md",
+    "design:export:dtcg": "design.md export --format dtcg DESIGN.md"
+  },
+  "devDependencies": {
+    "@google/design.md": "0.1.1"
+  }
+}

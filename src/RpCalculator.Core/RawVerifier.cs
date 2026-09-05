@@ -66,6 +66,8 @@ public static class RawVerifier
         var start = startDate.Date;
         var hundredDates = new List<string>();
         var lastIndex = -1;
+        var firstIndex = -1;
+        string? firstDate = null;
         var maxGap = 0;
 
         for (var i = 0; i < days; i++)
@@ -96,6 +98,12 @@ public static class RawVerifier
                     }
                 }
 
+                if (firstIndex < 0)
+                {
+                    firstIndex = i;
+                    firstDate = d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+                }
+
                 lastIndex = i;
                 hundredDates.Add(d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
             }
@@ -106,6 +114,8 @@ public static class RawVerifier
             Id = id,
             MaxGap = maxGap,
             HundredCount = hundredDates.Count,
+            FirstHundredIndex = firstIndex,
+            FirstHundredDate = firstDate,
             HundredDates = hundredDates
         };
     }
@@ -159,6 +169,12 @@ public sealed class RawVerificationResult
     public int MaxGap { get; init; }
 
     public int HundredCount { get; init; }
+
+    /// <summary>第一个 100 分日期在窗口内的索引（第几天），没有则为 -1。</summary>
+    public int FirstHundredIndex { get; init; } = -1;
+
+    /// <summary>第一个 100 分日期，格式严格为 <c>yyyy-MM-dd</c>；没有则为 null。</summary>
+    public string? FirstHundredDate { get; init; }
 
     /// <summary>100 分日期列表，格式严格为 <c>yyyy-MM-dd</c>。</summary>
     public IReadOnlyList<string> HundredDates { get; init; } = Array.Empty<string>();

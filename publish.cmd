@@ -7,7 +7,7 @@ REM    artifacts\publish-singlefile\RpCalculator.App.exe   单文件 EXE
 REM    artifacts\RpCalculator-Setup.msi                     MSI 安装包
 REM
 REM  注意：
-REM  1. 自包含 .NET 8 WPF 的最小体积约 65MB（WPF 不支持裁剪），单文件无法做到 20MB。
+REM  1. 自包含 .NET 8 WinForms 的最小体积约 60MB（AntdUI 纯 GDI），单文件无法做到 20MB。
 REM     按规格约定 ≥50MB 时跳过单文件强制要求，改为 MSI 安装包。
 REM  2. 需要 WiX 4.0.4：
 REM       dotnet tool install wix --version 4.0.4

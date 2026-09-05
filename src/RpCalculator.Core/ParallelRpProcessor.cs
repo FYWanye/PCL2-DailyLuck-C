@@ -78,6 +78,8 @@ public static class ParallelRpProcessor
         int maxDegreeOfParallelism)
     {
         var stopwatch = Stopwatch.StartNew();
+        var progressClock = Stopwatch.StartNew();
+        long lastProgressReportMs = 0;
         var store = new TopKResultStore(k, mode);
         long processedCount = 0;
         long invalidCount = 0;
@@ -125,8 +127,9 @@ public static class ParallelRpProcessor
                         var current = idNormalizer is null ? id : idNormalizer(id);
                         if (current is null)
                         {
-                            local.Processed++;
-                            local.Invalid++;
+                            Interlocked.Increment(ref processedCount);
+                            Interlocked.Increment(ref invalidCount);
+                            TryReportProgress(progressClock, ref lastProgressReportMs, processedCount, invalidCount, totalCount, store, progress);
                             return local;
                         }
 
@@ -149,17 +152,12 @@ public static class ParallelRpProcessor
                             }
                         }
 
-                        local.Processed++;
+                        Interlocked.Increment(ref processedCount);
+                        TryReportProgress(progressClock, ref lastProgressReportMs, processedCount, invalidCount, totalCount, store, progress);
                         return local;
                     },
                     local =>
                     {
-                        Interlocked.Add(ref processedCount, local.Processed);
-                        if (local.Invalid > 0)
-                        {
-                            Interlocked.Add(ref invalidCount, local.Invalid);
-                        }
-
                         TryMergeLocalBest(local, dateRange, store);
                     });
 
@@ -184,6 +182,35 @@ public static class ParallelRpProcessor
             IsCancelled = isCancelled,
             Elapsed = stopwatch.Elapsed
         };
+    }
+
+    /// <summary>
+    /// 自适应进度节流：无论批次大小如何，最多约每 200ms 报告一次，
+    /// 避免固定“每批（100,000 个）报告一次”导致小任务进度不动、大任务长时间无反馈。
+    /// </summary>
+    private static void TryReportProgress(
+        Stopwatch clock,
+        ref long lastReportMs,
+        long processedCount,
+        long invalidCount,
+        long? totalCount,
+        TopKResultStore store,
+        IProgress<RpProgressInfo>? progress)
+    {
+        if (progress is null)
+        {
+            return;
+        }
+
+        var now = clock.ElapsedMilliseconds;
+        var last = Volatile.Read(ref lastReportMs);
+        if (now - last < 200)
+        {
+            return;
+        }
+
+        Interlocked.Exchange(ref lastReportMs, now);
+        progress.Report(CreateProgress(processedCount, invalidCount, totalCount, store));
     }
 
     /// <summary>
@@ -288,12 +315,6 @@ public static class ParallelRpProcessor
             _k = k;
             _ = mode; // 无效指标过滤已在扫描分支完成。
         }
-
-        /// <summary>本 worker 实际消费的识别码总数（有效 + 无效）。</summary>
-        public long Processed;
-
-        /// <summary>本 worker 判定为无效的识别码数量。</summary>
-        public long Invalid;
 
         /// <summary>按指标降序排列的局部 Top-K 快照（同指标按发现先后）。</summary>
         public IReadOnlyList<LocalEntry> Entries => _entries;
