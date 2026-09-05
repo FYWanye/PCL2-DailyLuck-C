@@ -65,7 +65,11 @@ if errorlevel 1 goto :err
 
 REM ---- 4) 生成 WiX 源并构建 MSI
 echo [4/4] 构建 MSI 安装包...
-python "%PROOT%\.workbuddy\scripts\generate_wix.py"
+python "%PROOT%\installer\generate_wix.py" ^
+    --publish-dir "%PROOT%\artifacts\publish-folder" ^
+    --out-wxs "%PROOT%\installer\installer.wxs" ^
+    --out-wxl "%PROOT%\installer\installer.wxl" ^
+    --version 1.0.0.0
 if errorlevel 1 goto :err
 
 dotnet wix build ^

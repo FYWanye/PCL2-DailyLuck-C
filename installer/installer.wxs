@@ -3,9 +3,9 @@
      xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
 
   <!--
-    今日人品间隔分析器 安装包（WiX 4）
-    - 自包含发布：所有 .NET / WPF 运行时已嵌入，安装时无需目标机器预装 .NET
-    - 递归打包所有 culture 子目录（WPF 数据绑定依赖）
+    今日人品间隔分析器 安装包（WiX 4，由 generate_wix.py 自动生成）
+    - 自包含发布：所有 .NET / WinForms 运行时已嵌入，安装时无需目标机器预装 .NET
+    - 递归打包所有 culture 子目录
     - 安装目录：%ProgramFiles%\RpCalculator\今日人品间隔分析器
     - 桌面 + 开始菜单快捷方式，使用 app.ico
   -->
@@ -23,6 +23,7 @@
 
     <Feature Id="MainFeature" Title="!(loc.FeatureMainTitle)" Level="1">
       <ComponentGroupRef Id="AppFiles" />
+      <ComponentGroupRef Id="CG_Sub_Assets" />
       <ComponentGroupRef Id="CG_Sub_cs" />
       <ComponentGroupRef Id="CG_Sub_de" />
       <ComponentGroupRef Id="CG_Sub_es" />
@@ -45,6 +46,7 @@
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="INSTALLFOLDER" Name="RpCalculator">
         <Directory Id="AppSubFolder" Name="今日人品间隔分析器">
+          <Directory Id="Sub_Assets" Name="Assets" />
           <Directory Id="Sub_cs" Name="cs" />
           <Directory Id="Sub_de" Name="de" />
           <Directory Id="Sub_es" Name="es" />
@@ -70,6 +72,7 @@
     <ComponentGroup Id="AppFiles" Directory="AppSubFolder">
       <Component Id="AppAllFiles" Guid="{3F018332-DF32-5294-B76D-F5C26E0CBD7F}">
         <File Source="Accessibility.dll" />
+        <File Source="AntdUI.dll" />
         <File Source="D3DCompiler_47_cor3.dll" />
         <File Source="DirectWriteForwarder.dll" />
         <File Source="Microsoft.CSharp.dll" />
@@ -312,6 +315,14 @@
         <File Source="vcruntime140_cor3.dll" />
         <File Source="wpfgfx_cor3.dll" />
         <File Id="AppExeKeyPath" Source="RpCalculator.App.exe" KeyPath="yes" Checksum="yes" />
+      </Component>
+    </ComponentGroup>
+  </Fragment>
+
+  <Fragment>
+    <ComponentGroup Id="CG_Sub_Assets" Directory="Sub_Assets">
+      <Component Id="Cmp_Sub_Assets" Guid="{AEA4263D-837A-5F43-A37E-FE6883445E96}">
+        <File Id="Cmp_Sub_Assets_kp" Source="Assets/app.ico" KeyPath="yes" />
       </Component>
     </ComponentGroup>
   </Fragment>

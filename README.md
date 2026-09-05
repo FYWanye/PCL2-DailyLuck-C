@@ -57,7 +57,10 @@ RpCalculator.sln
 ├── DESIGN.md                        # 视觉规范（@google/design.md 格式）
 ├── package.json                     # design.md CLI 工具链
 ├── publish.cmd                      # 一键发布 EXE + MSI
-├── installer/                       # WiX 安装包源码
+├── installer/                       # WiX 安装包源码与自动生成脚本
+│   ├── installer.wxs                # 本地发布生成的 WiX 源
+│   ├── installer.wxl                # WiX 中文本地化
+│   └── generate_wix.py              # 根据发布目录自动生成 WiX 源（本地/CI 共用）
 ├── .github/workflows/build-release.yml
 ├── src/
 │   ├── RpCalculator.Core/           # 纯算法类库，无 UI 依赖
@@ -111,41 +114,56 @@ dotnet test RpCalculator.sln -c Release
 
 ## 发布
 
-> 自包含 WinForms + AntdUI 会包含 .NET 运行时，单文件 EXE 约 60~70MB；
-> 按项目约定 ≥50MB 时跳过“强制单文件体积限制”，同时生成 MSI 安装包。
+> 当前应用是 WinForms + AntdUI，**仅支持 Windows**，不会产出 macOS / Linux 安装包。
+> CI 会同时构建 Windows x64 与 Windows arm64。
 
-| 产物 | 说明 |
-|------|------|
-| `artifacts\publish-singlefile\RpCalculator.App.exe` | 自包含单文件 EXE |
-| `artifacts\RpCalculator-Setup.msi` | WiX 4 MSI 安装包 |
+### GitHub Actions 自动发布
 
-### 本机一键发布
+推送**任意 tag**（例如 `1.0.5` 或 `v1.0.5`）会触发 `.github/workflows/build-release.yml`，自动完成：
+
+1. 还原依赖
+2. Release 构建
+3. 单元测试
+4. 发布 Windows x64 / arm64 自包含程序
+5. 生成 MSI 安装包 + 绿色版 zip
+6. 创建 GitHub Release 并附加产物
+
+Release 标题和附件名会统一显示为 `v<版本>`：
+
+```bash
+# 不带 v 也可以，例如 1.0.5
+git tag 1.0.5
+git push origin 1.0.5
+
+# 带 v 也可以
+git tag v1.0.6
+git push origin v1.0.6
+```
+
+### 手动触发 Release
+
+在 GitHub 的 **Actions → Build & Release → Run workflow** 中填写版本号：
+
+```text
+version: 1.0.5
+```
+
+运行成功后会自动创建/更新 `v1.0.5` Release。
+
+### 本机一键发布（仅 Windows x64）
 
 ```cmd
 publish.cmd
 ```
 
-脚本会自动：生成图标 → 发布单文件 EXE → 发布多文件目录 → 生成 WiX 源并构建 MSI。
+脚本会自动：发布单文件 EXE → 发布多文件目录 → 生成 WiX 源 → 构建 MSI。
+
+| 本机产物 | 说明 |
+|------|------|
+| `artifacts\publish-singlefile\RpCalculator.App.exe` | 自包含单文件 EXE |
+| `artifacts\RpCalculator-Setup.msi` | WiX 4 MSI 安装包（x64） |
 
 > 注意：项目路径如果包含 `#`，WiX 会把路径当 URI 解析失败；`publish.cmd` 会自动复制到临时目录构建。
-
-### GitHub Actions 自动发布
-
-推送 `v*` 开头的 tag（例如 `v1.0.5`）会触发 `.github/workflows/build-release.yml`，自动完成：
-
-1. 还原依赖
-2. Release 构建
-3. 单元测试
-4. 发布 win-x64 自包含程序
-5. 打包 zip
-6. 创建 GitHub Release 并附加产物
-
-例如：
-
-```bash
-git tag v1.0.5
-git push origin v1.0.5
-```
 
 ## 识别码格式约定
 

@@ -2,32 +2,52 @@
 # 自动构建与发布工作流
 #
 # 触发方式：
-#   1. push 以 "v" 开头的 tag（如 v1.0.0、v1.0.1）→ 自动构建 + 测试 + 创建 GitHub Release
-#   2. 手动触发（workflow_dispatch，保留）→ 构建 + 测试 + 上传构建产物（不创建 Release）
+#   1. push 任意 tag（如 1.0.0 或 v1.0.0）
+#      -> 自动构建 + 测试 + 创建 GitHub Release
+#      -> Release 标题/附件统一使用 v<版本>（例如 v1.0.0）
+#   2. 手动运行（workflow_dispatch），填写版本号
+#      -> 自动构建 + 测试 + 创建/更新 GitHub Release
 #
-# 产物：win-x64 自包含可执行程序，压缩为 zip 后附加到 Release / Artifacts。
+# 构建目标：
+#   - Windows x64（MSI + zip）
+#   - Windows arm64（MSI + zip）
+# 说明：当前应用是 WinForms + AntdUI，仅支持 Windows。
 # ============================================================
 name: Build & Release
 
 on:
   push:
     tags:
-      - 'v*'
+      - '**'
   workflow_dispatch:
-
-# 并发控制：同一 ref 的重复运行自动取消旧的。
-concurrency:
-  group: build-${{ github.ref }}
-  cancel-in-progress: true
+    inputs:
+      version:
+        description: 'Release version，例如 1.0.0 或 v1.0.0'
+        required: true
+        default: '1.0.0'
 
 # 创建 Release 需要写权限。
 permissions:
   contents: write
 
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
 jobs:
   build:
-    name: Build & Test & Publish
+    name: Build ${{ matrix.rid }}
     runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: win-x64
+            wix-arch: x64
+            artifact: win-x64
+          - rid: win-arm64
+            wix-arch: arm64
+            artifact: win-arm64
 
     steps:
       - name: 检出代码
@@ -38,6 +58,39 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
+      - name: 安装 Python（用于生成 WiX 源）
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: 解析版本号
+        id: version
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_EVENT_NAME -eq 'push') {
+            $raw = $env:GITHUB_REF_NAME
+          } else {
+            $raw = "${{ github.event.inputs.version }}"
+          }
+
+          if ([string]::IsNullOrWhiteSpace($raw)) {
+            $raw = '0.0.0'
+          }
+
+          $release = if ($raw.StartsWith('v', [System.StringComparison]::OrdinalIgnoreCase)) { $raw } else { 'v' + $raw }
+          $ver = $release.TrimStart('v')
+          $parts = $ver.Split('.')
+          while ($parts.Count -lt 4) {
+            $parts += '0'
+          }
+          if ($parts.Count -gt 4) {
+            $parts = $parts[0..3]
+          }
+          $msi = $parts -join '.'
+
+          "release=$release" >> $env:GITHUB_OUTPUT
+          "msi=$msi" >> $env:GITHUB_OUTPUT
+
       - name: 还原依赖
         run: dotnet restore RpCalculator.sln
 
@@ -47,29 +100,104 @@ jobs:
       - name: 运行单元测试
         run: dotnet test RpCalculator.sln -c Release --no-build --no-restore
 
-      - name: 发布 WinForms 应用（win-x64 自包含）
-        # 注意：不能带 --no-restore——restore 未指定 RID，不会生成 win-x64 的资产文件；
-        # publish 需要自行还原 win-x64 runtime pack（增量还原，开销很小）。
-        run: dotnet publish src/RpCalculator.App/RpCalculator.App.csproj -c Release -r win-x64 --self-contained true -o artifacts/app
+      - name: 发布 WinForms 应用（${{ matrix.rid }} 自包含多文件目录）
+        run: dotnet publish src/RpCalculator.App/RpCalculator.App.csproj -c Release -r ${{ matrix.rid }} --self-contained true -p:PublishSingleFile=false -p:DebugType=embedded -o artifacts/app
 
-      - name: 打包构建产物
+      - name: 生成 WiX 安装包源
+        run: python installer/generate_wix.py --publish-dir artifacts/app --out-wxs artifacts/installer.wxs --out-wxl artifacts/installer.wxl --version ${{ steps.version.outputs.msi }}
+
+      - name: 还原 WiX 工具
+        run: dotnet tool restore
+
+      - name: 添加 WiX UI 扩展
+        run: dotnet tool run wix extension add WixToolset.UI.wixext/4.0.4
+
+      - name: 构建 MSI（${{ matrix.artifact }}）
+        run: dotnet tool run wix build -b artifacts/app -b . -arch ${{ matrix.wix-arch }} -ext WixToolset.UI.wixext -o artifacts/RpCalculator-Setup-${{ matrix.artifact }}.msi artifacts/installer.wxs -loc artifacts/installer.wxl
+
+      - name: 打包绿色版 zip
         shell: pwsh
         run: |
-          $tag = if ($env:GITHUB_REF -like 'refs/tags/*') { $env:GITHUB_REF -replace 'refs/tags/', '' } else { 'manual' }
-          Compress-Archive -Path artifacts/app/* -DestinationPath "artifacts/RpCalculator-$tag-win-x64.zip" -Force
+          $release = "${{ steps.version.outputs.release }}"
+          Compress-Archive -Path artifacts/app/* -DestinationPath "artifacts/RpCalculator-$release-${{ matrix.artifact }}.zip" -Force
 
-      - name: 上传构建产物（手动构建也可下载）
+      - name: 上传构建产物
         uses: actions/upload-artifact@v4
         with:
-          name: RpCalculator-win-x64
-          path: artifacts/*.zip
+          name: RpCalculator-${{ matrix.artifact }}
+          path: |
+            artifacts/RpCalculator-Setup-${{ matrix.artifact }}.msi
+            artifacts/RpCalculator-${{ steps.version.outputs.release }}-${{ matrix.artifact }}.zip
           if-no-files-found: error
 
-      # 仅在 tag 推送触发时创建 GitHub Release 并附加 zip。
-      - name: 创建 GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
+  release:
+    name: 发布 GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 解析 Release 信息
+        id: version
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            RAW="${{ github.ref_name }}"
+          else
+            RAW="${{ github.event.inputs.version }}"
+          fi
+
+          if [ -z "$RAW" ]; then
+            RAW="0.0.0"
+          fi
+
+          case "$RAW" in
+            v*|V*) RELEASE="$RAW" ;;
+            *) RELEASE="v$RAW" ;;
+          esac
+
+          if [ "${{ github.event_name }}" = "push" ]; then
+            TAG="$RAW"
+          else
+            TAG="$RELEASE"
+          fi
+
+          echo "release=$RELEASE" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: 下载 x64 产物
+        uses: actions/download-artifact@v4
         with:
-          files: artifacts/*.zip
-          generate_release_notes: true
-          fail_on_unmatched_files: true
+          name: RpCalculator-win-x64
+          path: release/win-x64
+
+      - name: 下载 arm64 产物
+        uses: actions/download-artifact@v4
+        with:
+          name: RpCalculator-win-arm64
+          path: release/win-arm64
+
+      - name: 创建/更新 GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.version.outputs.tag }}"
+          RELEASE="${{ steps.version.outputs.release }}"
+
+          # 收集所有 .msi / .zip
+          mapfile -d '' files < <(find release -type f \( -name '*.msi' -o -name '*.zip' \) -print0)
+
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $TAG already exists, updating..."
+            gh release edit "$TAG" --title "$RELEASE" --repo "$GITHUB_REPOSITORY"
+            if [ ${#files[@]} -gt 0 ]; then
+              gh release upload "$TAG" "${files[@]}" --clobber --repo "$GITHUB_REPOSITORY"
+            fi
+          else
+            echo "Creating release $TAG ($RELEASE)..."
+            gh release create "$TAG" "${files[@]}" \
+              --title "$RELEASE" \
+              --generate-notes \
+              --target "$GITHUB_SHA" \
+              --repo "$GITHUB_REPOSITORY"
+          fi
