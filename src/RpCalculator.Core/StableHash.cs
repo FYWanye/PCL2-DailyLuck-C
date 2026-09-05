@@ -1,3 +1,6 @@
+using System.Globalization;
+using System.Numerics;
+
 namespace RpCalculator.Core;
 
 /// <summary>
@@ -40,5 +43,28 @@ public static class StableHash
         }
 
         return hash;
+    }
+
+    /// <summary>
+    /// 精确模拟 Python 的 <c>h / 3</c>（整数真除法 -> 最近 double）。
+    /// C# 的 <c>(double)h / 3.0</c> 会先把 h 舍入成 double 再做除法，属于双重舍入，
+    /// 在 970/1000/0 边界附近可能与 Python 差 1 个 ulp，导致 100 分误判。
+    /// 这里用 53 位定点数做一次正确舍入；只应在边界危险区调用。
+    /// </summary>
+    internal static double DivideBy3ToDouble(ulong value)
+    {
+        const double scale = 9007199254740992.0; // 2^53
+        var numerator = new BigInteger(value) << 53;
+        var quotient = BigInteger.DivRem(numerator, 3, out var remainder);
+        if (remainder * 2 >= 3)
+        {
+            quotient += 1;
+        }
+
+        // 注意：不能直接 (double)quotient——.NET 的 BigInteger→double 舍入与 Python 的
+        // int→float 不完全一致，在边界会差 1 ulp。这里通过十进制字符串解析得到与 Python
+        // 一致的“正确舍入到最近 double”。此方法只会在边界危险区被调用。
+        var parsed = double.Parse(quotient.ToString(), CultureInfo.InvariantCulture);
+        return parsed / scale;
     }
 }

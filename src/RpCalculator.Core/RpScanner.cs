@@ -41,13 +41,13 @@ public static class RpScanner
         double raw = Math.Abs((firstHashValue + secondHashValue) / 527.0) % 1001.0;
 
         // Python 的 h1 / 3 是对 64 位整数做“真除法”，返回正确舍入的 double；
-        // C# 直接 (double)h1 / 3.0 会在极端边界少 1 个 ulp，导致 100 分漏判。
-        // 这里先用快速 double 路径；只有在 970 阈值或 0/1001 回绕边界附近，
-        // 才用 decimal 精确模拟 Python 的整数真除法，保证与 Test.py 完全一致。
+        // C# 直接 (double)h1 / 3.0 属于双重舍入，在 970 阈值或 0/1001 回绕边界
+        // 可能差 1 个 ulp，导致 100 分误判。
+        // 这里先用快速 double 路径；只有在边界危险区，才用精确方法模拟 Python。
         if (raw < 10.0 || raw > 990.0 || (raw >= 960.0 && raw <= 980.0))
         {
-            firstHashValue = (double)((decimal)h1 / 3m);
-            secondHashValue = (double)((decimal)h2 / 3m);
+            firstHashValue = StableHash.DivideBy3ToDouble(h1);
+            secondHashValue = StableHash.DivideBy3ToDouble(h2);
             raw = Math.Abs((firstHashValue + secondHashValue) / 527.0) % 1001.0;
         }
 
