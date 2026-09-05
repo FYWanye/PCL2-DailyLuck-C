@@ -27,7 +27,7 @@ public static class RpScanner
     private const string SecondSeedSuffix = "kjhg";
 
     /// <summary>第一个种子的固定前缀哈希状态，所有识别码/日期复用。</summary>
-    private static readonly ulong FirstSeedPrefixState =
+    internal static readonly ulong FirstSeedPrefixState =
         StableHash.ContinueHash(5381UL, FirstSeedPrefix.AsSpan());
 
     /// <summary>
@@ -72,10 +72,8 @@ public static class RpScanner
         {
             foreach (var entry in yearGroup.Entries)
             {
-                // 种子1：asdfgbn + dayOfYear + (12#3$45 + year + IUY)
-                ulong state = StableHash.ContinueHash(FirstSeedPrefixState, entry.DayOfYearString.AsSpan());
-                state = StableHash.ContinueHash(state, yearGroup.FirstSeedSuffix.AsSpan());
-                ulong h1 = state ^ StableHash.XorConstant;
+                // 种子1已由 DateRangeInfo 按日期预计算，这里直接读取。
+                ulong h1 = entry.H1;
 
                 // 种子2：QWERTY + id + 0*8&6 + day + kjhg
                 ulong state2 = StableHash.ContinueHash(stateSecondId, entry.DayString.AsSpan());
@@ -122,9 +120,7 @@ public static class RpScanner
             {
                 visitDay?.Invoke(entry.DateIndex);
 
-                ulong state = StableHash.ContinueHash(FirstSeedPrefixState, entry.DayOfYearString.AsSpan());
-                state = StableHash.ContinueHash(state, yearGroup.FirstSeedSuffix.AsSpan());
-                ulong h1 = state ^ StableHash.XorConstant;
+                ulong h1 = entry.H1;
 
                 ulong state2 = StableHash.ContinueHash(stateSecondId, entry.DayString.AsSpan());
                 state2 = StableHash.ContinueHash(state2, SecondSeedSuffix.AsSpan());
@@ -155,9 +151,7 @@ public static class RpScanner
         {
             foreach (var entry in yearGroup.Entries)
             {
-                ulong state = StableHash.ContinueHash(FirstSeedPrefixState, entry.DayOfYearString.AsSpan());
-                state = StableHash.ContinueHash(state, yearGroup.FirstSeedSuffix.AsSpan());
-                ulong h1 = state ^ StableHash.XorConstant;
+                ulong h1 = entry.H1;
 
                 ulong state2 = StableHash.ContinueHash(stateSecondId, entry.DayString.AsSpan());
                 state2 = StableHash.ContinueHash(state2, SecondSeedSuffix.AsSpan());

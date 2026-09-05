@@ -94,82 +94,63 @@ public static class ParallelRpProcessor
             MaxDegreeOfParallelism = maxDegreeOfParallelism
         };
 
-        using var enumerator = ids.GetEnumerator();
-
         try
         {
-            while (true)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-
-                // 只物化一个批次。100,000 个 string 引用约 0.8 MB，内存可控。
-                var batch = new List<string>(batchSize);
-                while (batch.Count < batchSize && enumerator.MoveNext())
+            // 直接流式并行：不再“先串行填一批 10 万，再并行算一批”，
+            // 避免批次切换时所有 worker 空等，让 CPU 占用更连续。
+            Parallel.ForEach(
+                ids,
+                parallelOptions,
+                () => new WorkerState(k, mode),
+                (id, _, worker) =>
                 {
-                    batch.Add(enumerator.Current);
-                }
+                    // 快速取消检查。ParallelOptions 也会在协作点抛出 OCE。
+                    cancellationToken.ThrowIfCancellationRequested();
 
-                if (batch.Count == 0)
-                {
-                    break;
-                }
-
-                Parallel.ForEach(
-                    batch,
-                    parallelOptions,
-                    () => new WorkerState(k, mode),
-                    (id, _, worker) =>
+                    // 规范化识别码：null 表示无效（如文件行格式错误/首字符为 0）。
+                    // 无效识别码计入处理数量与无效计数，但绝不参与排名。
+                    // 注意：不能用 ?? id 回退——normalizer 返回 null 恰恰表示“无效”，
+                    // 回退成原始行会导致无效识别码混入计算。
+                    var current = idNormalizer is null ? id : idNormalizer(id);
+                    if (current is null)
                     {
-                        // 快速取消检查。ParallelOptions 也会在协作点抛出 OCE。
-                        cancellationToken.ThrowIfCancellationRequested();
-
-                        // 规范化识别码：null 表示无效（如文件行格式错误/首字符为 0）。
-                        // 无效识别码计入处理数量与无效计数，但绝不参与排名。
-                        // 注意：不能用 ?? id 回退——normalizer 返回 null 恰恰表示“无效”，
-                        // 回退成原始行会导致无效识别码混入计算。
-                        var current = idNormalizer is null ? id : idNormalizer(id);
-                        if (current is null)
+                        worker.Invalid++;
+                    }
+                    else if (mode == ScanMode.MaxGap)
+                    {
+                        var scan = RpScanner.ScanCore(current, dateRange);
+                        // 指标 0 表示不足 2 个 100 分日期，无效，不进入局部 Top-K。
+                        if (scan.MaxGap > 0)
                         {
-                            worker.Invalid++;
+                            worker.Best.TryAdd(new LocalEntry(current, scan.MaxGap, scan.HundredCount, -1, default));
                         }
-                        else if (mode == ScanMode.MaxGap)
+                    }
+                    else
+                    {
+                        var scan = RpScanner.ScanFirst100(current, dateRange);
+                        // 早停：找到第一个 100 分立即返回，无 100 分则 Found=false，无效。
+                        if (scan.Found)
                         {
-                            var scan = RpScanner.ScanCore(current, dateRange);
-                            // 指标 0 表示不足 2 个 100 分日期，无效，不进入局部 Top-K。
-                            if (scan.MaxGap > 0)
-                            {
-                                worker.Best.TryAdd(new LocalEntry(current, scan.MaxGap, scan.HundredCount, -1, default));
-                            }
+                            worker.Best.TryAdd(new LocalEntry(current, scan.DateIndex, 1, scan.DateIndex, scan.Date));
                         }
-                        else
-                        {
-                            var scan = RpScanner.ScanFirst100(current, dateRange);
-                            // 早停：找到第一个 100 分立即返回，无 100 分则 Found=false，无效。
-                            if (scan.Found)
-                            {
-                                worker.Best.TryAdd(new LocalEntry(current, scan.DateIndex, 1, scan.DateIndex, scan.Date));
-                            }
-                        }
+                    }
 
-                        worker.Processed++;
+                    worker.Processed++;
 
-                        // 用线程本地计数，每 256 个识别码才向共享计数累加一次，
-                        // 避免高核心数下每个识别码都 Interlocked 争抢同一缓存行。
-                        if ((worker.Processed & (ProgressFlushInterval - 1)) == 0)
-                        {
-                            FlushWorkerProgress(worker, ref processedCount, ref invalidCount, progressClock, ref lastProgressReportMs, totalCount, store, progress);
-                        }
-
-                        return worker;
-                    },
-                    worker =>
+                    // 用线程本地计数，每 256 个识别码才向共享计数累加一次，
+                    // 避免高核心数下每个识别码都 Interlocked 争抢同一缓存行。
+                    if ((worker.Processed & (ProgressFlushInterval - 1)) == 0)
                     {
                         FlushWorkerProgress(worker, ref processedCount, ref invalidCount, progressClock, ref lastProgressReportMs, totalCount, store, progress);
-                        TryMergeLocalBest(worker.Best, dateRange, store);
-                    });
+                    }
 
-                progress?.Report(CreateProgress(processedCount, invalidCount, totalCount, store));
-            }
+                    return worker;
+                },
+                worker =>
+                {
+                    FlushWorkerProgress(worker, ref processedCount, ref invalidCount, progressClock, ref lastProgressReportMs, totalCount, store, progress);
+                    TryMergeLocalBest(worker.Best, dateRange, store);
+                });
 
             isCancelled = cancellationToken.IsCancellationRequested;
         }

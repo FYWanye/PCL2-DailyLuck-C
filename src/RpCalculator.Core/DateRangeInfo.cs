@@ -26,6 +26,7 @@ public sealed class DateRangeInfo
         var groups = new List<YearGroup>();
         var currentEntries = new List<DayEntry>();
         var currentYear = int.MinValue;
+        var currentYearSuffix = string.Empty;
 
         for (var index = 0; index < days; index++)
         {
@@ -39,13 +40,20 @@ public sealed class DateRangeInfo
                 }
 
                 currentYear = date.Year;
+                currentYearSuffix = "12#3$45" + currentYear.ToString(CultureInfo.InvariantCulture) + "IUY";
                 currentEntries = new List<DayEntry>(days / 365 + 2);
             }
 
-            currentEntries.Add(new DayEntry(
-                index,
-                date.DayOfYear.ToString(CultureInfo.InvariantCulture),
-                date.Day.ToString(CultureInfo.InvariantCulture)));
+            var dayOfYearString = date.DayOfYear.ToString(CultureInfo.InvariantCulture);
+            var dayString = date.Day.ToString(CultureInfo.InvariantCulture);
+
+            // 种子1只依赖日期，不依赖识别码，因此在这里预计算 h1，
+            // 扫描每个识别码时不再重复哈希 dayOfYear + year 后缀。
+            var h1State = StableHash.ContinueHash(RpScanner.FirstSeedPrefixState, dayOfYearString.AsSpan());
+            h1State = StableHash.ContinueHash(h1State, currentYearSuffix.AsSpan());
+            var h1 = h1State ^ StableHash.XorConstant;
+
+            currentEntries.Add(new DayEntry(index, dayOfYearString, dayString, h1));
         }
 
         if (currentEntries.Count > 0)
@@ -104,11 +112,12 @@ public sealed class YearGroup
 /// </summary>
 public readonly struct DayEntry
 {
-    public DayEntry(int dateIndex, string dayOfYearString, string dayString)
+    public DayEntry(int dateIndex, string dayOfYearString, string dayString, ulong h1)
     {
         DateIndex = dateIndex;
         DayOfYearString = dayOfYearString;
         DayString = dayString;
+        H1 = h1;
     }
 
     public int DateIndex { get; }
@@ -118,4 +127,7 @@ public readonly struct DayEntry
 
     /// <summary>date.Day 的不可变字符串。</summary>
     public string DayString { get; }
+
+    /// <summary>种子1的最终 h1（已异或 XorConstant），只依赖日期，不依赖识别码。</summary>
+    public ulong H1 { get; }
 }
