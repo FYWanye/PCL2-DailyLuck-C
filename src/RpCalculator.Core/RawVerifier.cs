@@ -142,9 +142,10 @@ public static class RawVerifier
     /// </summary>
     public static bool IsHundred(ulong h1, ulong h2)
     {
+        // h1/h2 都是 64 位无符号整数，h/3 不可能为负，因此无需 abs()。
         double firstHashValue = (double)h1 / 3.0;
         double secondHashValue = (double)h2 / 3.0;
-        double raw = Math.Abs((firstHashValue + secondHashValue) / 527.0) % 1001.0;
+        double raw = ((firstHashValue + secondHashValue) / 527.0) % 1001.0;
 
         // 与 RpScanner.IsHundredPoint 相同：在阈值/回绕边界附近先用近似复核，
         // 只有贴近边界时才走精确方法模拟 Python 的整数真除法 h1 / 3。
@@ -152,19 +153,18 @@ public static class RawVerifier
         {
             firstHashValue = StableHash.DivideBy3Approx(h1);
             secondHashValue = StableHash.DivideBy3Approx(h2);
-            raw = Math.Abs((firstHashValue + secondHashValue) / 527.0) % 1001.0;
+            raw = ((firstHashValue + secondHashValue) / 527.0) % 1001.0;
 
             if (raw < 2.0 || raw > 998.0 || (raw >= 968.0 && raw <= 972.0))
             {
                 firstHashValue = StableHash.DivideBy3ToDouble(h1);
                 secondHashValue = StableHash.DivideBy3ToDouble(h2);
-                raw = Math.Abs((firstHashValue + secondHashValue) / 527.0) % 1001.0;
+                raw = ((firstHashValue + secondHashValue) / 527.0) % 1001.0;
             }
         }
 
-        double rounded = Math.Round(raw, MidpointRounding.ToEven);
-
-        return rounded >= 970.0;
+        // BankersRound(raw) >= 970 的区间是 [969.5, 1001)，因此无需调用 Math.Round。
+        return raw >= 969.5;
     }
 }
 

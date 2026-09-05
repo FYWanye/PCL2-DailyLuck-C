@@ -225,8 +225,12 @@ public static class ParallelRpProcessor
             return;
         }
 
-        Interlocked.Exchange(ref lastReportMs, now);
-        progress.Report(CreateProgress(processedCount, invalidCount, totalCount, store));
+        // 只有当前线程成功把时间戳推进到 now 才上报，避免多个 worker 同时越过
+        // 200ms 间隔后重复触发同一轮 UI 更新。
+        if (Interlocked.CompareExchange(ref lastReportMs, now, last) == last)
+        {
+            progress.Report(CreateProgress(processedCount, invalidCount, totalCount, store));
+        }
     }
 
     /// <summary>

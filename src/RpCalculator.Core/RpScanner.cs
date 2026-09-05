@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+
 namespace RpCalculator.Core;
 
 /// <summary>
@@ -24,7 +26,6 @@ public static class RpScanner
     private const string FirstSeedPrefix = "asdfgbn";
     private const string SecondSeedPrefix = "QWERTY";
     private const string SecondSeedMiddle = "0*8&6";
-    private const string SecondSeedSuffix = "kjhg";
 
     /// <summary>第一个种子的固定前缀哈希状态，所有识别码/日期复用。</summary>
     internal static readonly ulong FirstSeedPrefixState =
@@ -36,9 +37,10 @@ public static class RpScanner
     /// </summary>
     public static bool IsHundredPoint(ulong h1, ulong h2)
     {
+        // h1/h2 都是 64 位无符号整数，h/3 不可能为负，因此无需 abs()。
         double firstHashValue = (double)h1 / 3.0;
         double secondHashValue = (double)h2 / 3.0;
-        double raw = Math.Abs((firstHashValue + secondHashValue) / 527.0) % 1001.0;
+        double raw = ((firstHashValue + secondHashValue) / 527.0) % 1001.0;
 
         // Python 的 h1 / 3 是对 64 位整数做“真除法”，返回正确舍入的 double；
         // C# 直接 (double)h1 / 3.0 属于双重舍入，在 970 阈值或 0/1001 回绕边界
@@ -49,19 +51,19 @@ public static class RpScanner
         {
             firstHashValue = StableHash.DivideBy3Approx(h1);
             secondHashValue = StableHash.DivideBy3Approx(h2);
-            raw = Math.Abs((firstHashValue + secondHashValue) / 527.0) % 1001.0;
+            raw = ((firstHashValue + secondHashValue) / 527.0) % 1001.0;
 
             if (raw < 2.0 || raw > 998.0 || (raw >= 968.0 && raw <= 972.0))
             {
                 firstHashValue = StableHash.DivideBy3ToDouble(h1);
                 secondHashValue = StableHash.DivideBy3ToDouble(h2);
-                raw = Math.Abs((firstHashValue + secondHashValue) / 527.0) % 1001.0;
+                raw = ((firstHashValue + secondHashValue) / 527.0) % 1001.0;
             }
         }
 
-        double rounded = Math.Round(raw, MidpointRounding.ToEven);
-
-        return rounded >= 970.0;
+        // BankersRound(raw) >= 970 的区间是 [969.5, 1001)，因此无需调用 Math.Round。
+        // 这保留了与 Python round_even 完全一致的判定结果，同时省掉每天一次舍入调用。
+        return raw >= 969.5;
     }
 
     /// <summary>
@@ -75,37 +77,36 @@ public static class RpScanner
         var last100Index = -1;
         var maxGap = 0;
         var hundredCount = 0;
+        var entries = info.AllEntries;
 
-        foreach (var yearGroup in info.YearGroups)
+        for (var i = 0; i < entries.Length; i++)
         {
-            foreach (var entry in yearGroup.Entries)
+            var entry = entries[i];
+
+            // 种子1已由 DateRangeInfo 按日期预计算，这里直接读取。
+            ulong h1 = entry.H1;
+
+            // 种子2：QWERTY + id + 0*8&6 + day + kjhg。
+            // day 用数值生成十进制字符，避免为每个识别码、每天再次遍历字符串。
+            ulong h2 = ContinueSecondSeed(stateSecondId, entry.Day);
+
+            if (!IsHundredPoint(h1, h2))
             {
-                // 种子1已由 DateRangeInfo 按日期预计算，这里直接读取。
-                ulong h1 = entry.H1;
-
-                // 种子2：QWERTY + id + 0*8&6 + day + kjhg
-                ulong state2 = StableHash.ContinueHash(stateSecondId, entry.DayString.AsSpan());
-                state2 = StableHash.ContinueHash(state2, SecondSeedSuffix.AsSpan());
-                ulong h2 = state2 ^ StableHash.XorConstant;
-
-                if (!IsHundredPoint(h1, h2))
-                {
-                    continue;
-                }
-
-                hundredCount++;
-
-                if (last100Index >= 0)
-                {
-                    int gap = entry.DateIndex - last100Index;
-                    if (gap > maxGap)
-                    {
-                        maxGap = gap;
-                    }
-                }
-
-                last100Index = entry.DateIndex;
+                continue;
             }
+
+            hundredCount++;
+
+            if (last100Index >= 0)
+            {
+                int gap = entry.DateIndex - last100Index;
+                if (gap > maxGap)
+                {
+                    maxGap = gap;
+                }
+            }
+
+            last100Index = entry.DateIndex;
         }
 
         return new RpCoreScanResult(maxGap, hundredCount);
@@ -121,23 +122,20 @@ public static class RpScanner
     public static RpFirst100ScanResult ScanFirst100(string id, DateRangeInfo info, Action<int>? visitDay = null)
     {
         ulong stateSecondId = GetSecondSeedIdState(id);
+        var entries = info.AllEntries;
 
-        foreach (var yearGroup in info.YearGroups)
+        for (var i = 0; i < entries.Length; i++)
         {
-            foreach (var entry in yearGroup.Entries)
+            var entry = entries[i];
+
+            visitDay?.Invoke(entry.DateIndex);
+
+            ulong h1 = entry.H1;
+            ulong h2 = ContinueSecondSeed(stateSecondId, entry.Day);
+
+            if (IsHundredPoint(h1, h2))
             {
-                visitDay?.Invoke(entry.DateIndex);
-
-                ulong h1 = entry.H1;
-
-                ulong state2 = StableHash.ContinueHash(stateSecondId, entry.DayString.AsSpan());
-                state2 = StableHash.ContinueHash(state2, SecondSeedSuffix.AsSpan());
-                ulong h2 = state2 ^ StableHash.XorConstant;
-
-                if (IsHundredPoint(h1, h2))
-                {
-                    return new RpFirst100ScanResult(true, entry.DateIndex, info.GetDate(entry.DateIndex));
-                }
+                return new RpFirst100ScanResult(true, entry.DateIndex, info.GetDate(entry.DateIndex));
             }
         }
 
@@ -150,39 +148,36 @@ public static class RpScanner
     public static RpScanResult ScanWithDates(string id, DateRangeInfo info)
     {
         ulong stateSecondId = GetSecondSeedIdState(id);
+        var entries = info.AllEntries;
 
         var hundredDates = new List<DateTime>();
         var last100Index = -1;
         var maxGap = 0;
 
-        foreach (var yearGroup in info.YearGroups)
+        for (var i = 0; i < entries.Length; i++)
         {
-            foreach (var entry in yearGroup.Entries)
+            var entry = entries[i];
+
+            ulong h1 = entry.H1;
+            ulong h2 = ContinueSecondSeed(stateSecondId, entry.Day);
+
+            if (!IsHundredPoint(h1, h2))
             {
-                ulong h1 = entry.H1;
-
-                ulong state2 = StableHash.ContinueHash(stateSecondId, entry.DayString.AsSpan());
-                state2 = StableHash.ContinueHash(state2, SecondSeedSuffix.AsSpan());
-                ulong h2 = state2 ^ StableHash.XorConstant;
-
-                if (!IsHundredPoint(h1, h2))
-                {
-                    continue;
-                }
-
-                hundredDates.Add(info.GetDate(entry.DateIndex));
-
-                if (last100Index >= 0)
-                {
-                    int gap = entry.DateIndex - last100Index;
-                    if (gap > maxGap)
-                    {
-                        maxGap = gap;
-                    }
-                }
-
-                last100Index = entry.DateIndex;
+                continue;
             }
+
+            hundredDates.Add(info.GetDate(entry.DateIndex));
+
+            if (last100Index >= 0)
+            {
+                int gap = entry.DateIndex - last100Index;
+                if (gap > maxGap)
+                {
+                    maxGap = gap;
+                }
+            }
+
+            last100Index = entry.DateIndex;
         }
 
         return new RpScanResult
@@ -192,6 +187,32 @@ public static class RpScanner
             HundredCount = hundredDates.Count,
             HundredDates = hundredDates
         };
+    }
+
+    /// <summary>
+    /// 用数值 day 直接生成 <c>day + "kjhg"</c> 的哈希并完成最终异或。
+    /// 该方法把每日最多 2 个数字字符与固定 4 个后缀字符展开为无循环、无字符串访问的哈希，
+    /// 是最大间隔完整扫描热路径上的主要优化点。
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static ulong ContinueSecondSeed(ulong state, int day)
+    {
+        if (day >= 10)
+        {
+            state = unchecked((state << 5) ^ state ^ (ulong)('0' + day / 10));
+            state = unchecked((state << 5) ^ state ^ (ulong)('0' + day % 10));
+        }
+        else
+        {
+            state = unchecked((state << 5) ^ state ^ (ulong)('0' + day));
+        }
+
+        state = unchecked((state << 5) ^ state ^ (ulong)'k');
+        state = unchecked((state << 5) ^ state ^ (ulong)'j');
+        state = unchecked((state << 5) ^ state ^ (ulong)'h');
+        state = unchecked((state << 5) ^ state ^ (ulong)'g');
+
+        return state ^ StableHash.XorConstant;
     }
 
     /// <summary>

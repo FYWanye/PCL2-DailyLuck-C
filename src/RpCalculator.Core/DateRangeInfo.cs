@@ -12,6 +12,7 @@ namespace RpCalculator.Core;
 public sealed class DateRangeInfo
 {
     private readonly YearGroup[] _yearGroups;
+    private readonly DayEntry[] _allEntries;
 
     public DateRangeInfo(DateTime startDate, int days)
     {
@@ -24,7 +25,8 @@ public sealed class DateRangeInfo
         Days = days;
 
         var groups = new List<YearGroup>();
-        var currentEntries = new List<DayEntry>();
+        var currentEntries = new List<DayEntry>(days / 365 + 2);
+        var allEntries = new List<DayEntry>(days);
         var currentYear = int.MinValue;
         var currentYearSuffix = string.Empty;
 
@@ -53,7 +55,9 @@ public sealed class DateRangeInfo
             h1State = StableHash.ContinueHash(h1State, currentYearSuffix.AsSpan());
             var h1 = h1State ^ StableHash.XorConstant;
 
-            currentEntries.Add(new DayEntry(index, dayOfYearString, dayString, h1));
+            var entry = new DayEntry(index, date.Day, dayOfYearString, dayString, h1);
+            currentEntries.Add(entry);
+            allEntries.Add(entry);
         }
 
         if (currentEntries.Count > 0)
@@ -62,8 +66,12 @@ public sealed class DateRangeInfo
         }
 
         _yearGroups = groups.ToArray();
+        _allEntries = allEntries.ToArray();
         YearGroups = _yearGroups;
     }
+
+    /// <summary>供核心扫描器使用的一维日期数组，避免嵌套接口枚举。</summary>
+    internal DayEntry[] AllEntries => _allEntries;
 
     public DateTime StartDate { get; }
 
@@ -113,14 +121,23 @@ public sealed class YearGroup
 public readonly struct DayEntry
 {
     public DayEntry(int dateIndex, string dayOfYearString, string dayString, ulong h1)
+        : this(dateIndex, ExtractDay(dayString), dayOfYearString, dayString, h1)
+    {
+    }
+
+    public DayEntry(int dateIndex, int day, string dayOfYearString, string dayString, ulong h1)
     {
         DateIndex = dateIndex;
+        Day = day;
         DayOfYearString = dayOfYearString;
         DayString = dayString;
         H1 = h1;
     }
 
     public int DateIndex { get; }
+
+    /// <summary>date.Day 的数值（1-31），扫描时用于避免重复字符串访问。</summary>
+    public int Day { get; }
 
     /// <summary>date.DayOfYear 的不可变字符串。</summary>
     public string DayOfYearString { get; }
@@ -130,4 +147,9 @@ public readonly struct DayEntry
 
     /// <summary>种子1的最终 h1（已异或 XorConstant），只依赖日期，不依赖识别码。</summary>
     public ulong H1 { get; }
+
+    private static int ExtractDay(string dayString)
+    {
+        return int.Parse(dayString, System.Globalization.CultureInfo.InvariantCulture);
+    }
 }

@@ -65,9 +65,7 @@ public sealed class TopKResultStore
         {
             if (_items.Count < _k)
             {
-                var added = CopyWithSequence(candidate, _sequence++);
-                _items.Add(added);
-                SortDescending();
+                AddSorted(candidate, _sequence++);
                 return true;
             }
 
@@ -75,9 +73,7 @@ public sealed class TopKResultStore
             if (candidate.KeyMetric > worst.KeyMetric)
             {
                 _items.RemoveAt(_items.Count - 1);
-                var added = CopyWithSequence(candidate, _sequence++);
-                _items.Add(added);
-                SortDescending();
+                AddSorted(candidate, _sequence++);
                 return true;
             }
 
@@ -85,15 +81,12 @@ public sealed class TopKResultStore
         }
     }
 
-    /// <summary>返回按指标从高到低排列的快照（同指标按发现时间先后）。</summary>
+    /// <summary>返回按指标从高到低排列的快照（同指标按发现时间先后）。列表本身维护有序，直接快照。</summary>
     public IReadOnlyList<TopKResult> GetRanked()
     {
         lock (_gate)
         {
-            return _items
-                .OrderByDescending(x => x.KeyMetric)
-                .ThenBy(x => x.DiscoveredAt)
-                .ToArray();
+            return _items.ToArray();
         }
     }
 
@@ -108,23 +101,36 @@ public sealed class TopKResultStore
         }
     }
 
-    /// <summary>当前最佳（指标最高）。</summary>
+    /// <summary>当前最佳（指标最高）。列表始终按指标降序维护，因此首项即最佳。</summary>
     public TopKResult? Best
     {
         get
         {
-            var ranked = GetRanked();
-            return ranked.Count > 0 ? ranked[0] : null;
+            lock (_gate)
+            {
+                return _items.Count > 0 ? _items[0] : null;
+            }
         }
     }
 
-    private void SortDescending()
+    /// <summary>
+    /// 把候选按“指标降序、同指标发现先后”插入已排序列表。
+    /// 候选的 DiscoveredAt 由调用方单调递增分配，因此同指标新候选只会排在已有候选之后。
+    /// </summary>
+    private void AddSorted(TopKResult source, long discoveredAt)
     {
-        _items.Sort((a, b) =>
+        var added = CopyWithSequence(source, discoveredAt);
+        var index = _items.Count;
+        for (var i = 0; i < _items.Count; i++)
         {
-            var byMetric = b.KeyMetric.CompareTo(a.KeyMetric);
-            return byMetric != 0 ? byMetric : a.DiscoveredAt.CompareTo(b.DiscoveredAt);
-        });
+            if (_items[i].KeyMetric < added.KeyMetric)
+            {
+                index = i;
+                break;
+            }
+        }
+
+        _items.Insert(index, added);
     }
 
     private static TopKResult CopyWithSequence(TopKResult source, long discoveredAt)
