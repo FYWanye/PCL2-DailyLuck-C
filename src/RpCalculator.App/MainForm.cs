@@ -66,6 +66,7 @@ public sealed class MainForm : AntdUI.BorderlessForm
     private AntdUI.Input _fileInput = null!;
     private AntdUI.DatePicker _startDatePicker = null!;
     private AntdUI.Segmented _modeSegmented = null!;
+    private AntdUI.Segmented _cpuSegmented = null!;
     private AntdUI.Panel _filePanel = null!;
     private AntdUI.Button _startButton = null!;
     private AntdUI.Button _cancelButton = null!;
@@ -370,7 +371,7 @@ public sealed class MainForm : AntdUI.BorderlessForm
 
         // 每个功能独立成节，只显示当前选中的节。
         AddSection(CreateWelcomeCard(), 520);
-        AddSection(CreateInputCard(), 302);
+        AddSection(CreateInputCard(), 380);
         AddSection(CreateResultCard(), 560);
         AddSection(CreateRawCard(), 548);
         AddSection(CreateBenchmarkCard(), 308);
@@ -1217,6 +1218,25 @@ public sealed class MainForm : AntdUI.BorderlessForm
             CreateField("算法模式", out _modeSegmented, null));
         AddBodyRow(body, dateModeRow, 56);
         _modeSegmented.SelectIndexChanged += (_, _) => UpdateModeSubtitle();
+
+        // CPU 占用：默认 50%，100% 表示使用全部逻辑核心；基准测试固定 100%，不受此值影响。
+        var cpuField = CreateFieldPanel();
+        cpuField.Controls.Add(CreateCaptionLabel("CPU 占用（100 = 使用全部核心）"), 0, 0);
+        _cpuSegmented = new AntdUI.Segmented
+        {
+            AutoSize = false,
+            Dock = DockStyle.Fill,
+            Height = DesignTokens.ControlHeight,
+            Radius = DesignTokens.RoundedMd,
+            Gap = 4
+        };
+        _cpuSegmented.Items.Add(new AntdUI.SegmentedItem { Text = "25%" });
+        _cpuSegmented.Items.Add(new AntdUI.SegmentedItem { Text = "50%" });
+        _cpuSegmented.Items.Add(new AntdUI.SegmentedItem { Text = "75%" });
+        _cpuSegmented.Items.Add(new AntdUI.SegmentedItem { Text = "100%" });
+        _cpuSegmented.SelectIndex = 1;
+        cpuField.Controls.Add(_cpuSegmented, 0, 1);
+        AddBodyRow(body, cpuField, 56);
 
         AddBodyRow(body, CreateCaptionLabel("点击底部“开始计算”运行任务。"), 30);
 
@@ -2252,6 +2272,7 @@ public sealed class MainForm : AntdUI.BorderlessForm
         if (_browseButton is not null) _browseButton.Enabled = !locked;
         if (_startDatePicker is not null) _startDatePicker.Enabled = !locked;
         if (_modeSegmented is not null) _modeSegmented.Enabled = !locked;
+        if (_cpuSegmented is not null) _cpuSegmented.Enabled = !locked;
         if (_rawIdInput is not null) _rawIdInput.Enabled = !locked;
         if (_rawStartDatePicker is not null) _rawStartDatePicker.Enabled = !locked;
         if (_rawDaysInput is not null) _rawDaysInput.Enabled = !locked;
@@ -2356,7 +2377,8 @@ public sealed class MainForm : AntdUI.BorderlessForm
                 progress,
                 _cts.Token,
                 idNormalizer,
-                DefaultBatchSize);
+                DefaultBatchSize,
+                GetSelectedCpuDegree());
 
             ApplyResult(result);
             ShowSection(2); // 自动跳到“分析结果”
@@ -2423,6 +2445,23 @@ public sealed class MainForm : AntdUI.BorderlessForm
 
     private SourceMode CurrentSource => _sourceSegmented.SelectIndex == 0 ? SourceMode.Random : SourceMode.File;
     private ScanMode SelectedMode => _modeSegmented.SelectIndex == 0 ? ScanMode.MaxGap : ScanMode.First100Date;
+
+    /// <summary>按 UI 档位计算使用的逻辑核心数；100% = Environment.ProcessorCount。</summary>
+    private int GetSelectedCpuDegree()
+    {
+        var percent = _cpuSegmented is null
+            ? 50
+            : _cpuSegmented.SelectIndex switch
+            {
+                0 => 25,
+                1 => 50,
+                2 => 75,
+                _ => 100
+            };
+
+        var cores = Environment.ProcessorCount;
+        return Math.Max(1, (int)Math.Ceiling(cores * percent / 100.0));
+    }
 
     private void OnProgress(RpProgressInfo info)
     {
@@ -2860,40 +2899,59 @@ public sealed class MainForm : AntdUI.BorderlessForm
                         MaxDegreeOfParallelism = Environment.ProcessorCount
                     };
 
-                    Parallel.ForEach(ids, options, id =>
-                    {
-                        cts.Token.ThrowIfCancellationRequested();
-
-                        var scan = RpScanner.ScanCore(id, info);
-                        if (scan.MaxGap > 0)
+                    Parallel.ForEach(
+                        ids,
+                        options,
+                        () => 0L,
+                        (id, _, localProcessed) =>
                         {
-                            lock (bestLock)
+                            cts.Token.ThrowIfCancellationRequested();
+
+                            var scan = RpScanner.ScanCore(id, info);
+                            if (scan.MaxGap > 0)
                             {
-                                if (best is null || scan.MaxGap > best.KeyMetric)
+                                lock (bestLock)
                                 {
-                                    best = new TopKResult
+                                    if (best is null || scan.MaxGap > best.KeyMetric)
                                     {
-                                        Id = id,
-                                        Mode = ScanMode.MaxGap,
-                                        KeyMetric = scan.MaxGap,
-                                        HundredCount = scan.HundredCount,
-                                        HundredDates = Array.Empty<DateTime>()
-                                    };
+                                        best = new TopKResult
+                                        {
+                                            Id = id,
+                                            Mode = ScanMode.MaxGap,
+                                            KeyMetric = scan.MaxGap,
+                                            HundredCount = scan.HundredCount,
+                                            HundredDates = Array.Empty<DateTime>()
+                                        };
+                                    }
                                 }
                             }
-                        }
 
-                        var current = Interlocked.Increment(ref processed);
-                        UpdatePerfProcessed(current);
+                            localProcessed++;
+                            if ((localProcessed & 255) == 0)
+                            {
+                                var flushed = Interlocked.Add(ref processed, localProcessed);
+                                UpdatePerfProcessed(flushed);
+                                localProcessed = 0;
 
-                        var nowMs = _benchmarkStopwatch!.ElapsedMilliseconds;
-                        var lastReport = Interlocked.Read(ref lastBenchmarkReportMs);
-                        if (nowMs - lastReport >= 200 &&
-                            Interlocked.CompareExchange(ref lastBenchmarkReportMs, nowMs, lastReport) == lastReport)
+                                var nowMs = _benchmarkStopwatch!.ElapsedMilliseconds;
+                                var lastReport = Interlocked.Read(ref lastBenchmarkReportMs);
+                                if (nowMs - lastReport >= 200 &&
+                                    Interlocked.CompareExchange(ref lastBenchmarkReportMs, nowMs, lastReport) == lastReport)
+                                {
+                                    progress.Report(flushed);
+                                }
+                            }
+
+                            return localProcessed;
+                        },
+                        localProcessed =>
                         {
-                            progress.Report(current);
-                        }
-                    });
+                            if (localProcessed > 0)
+                            {
+                                var flushed = Interlocked.Add(ref processed, localProcessed);
+                                UpdatePerfProcessed(flushed);
+                            }
+                        });
                 },
                 CancellationToken.None);
 

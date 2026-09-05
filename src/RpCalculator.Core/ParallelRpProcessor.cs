@@ -21,6 +21,9 @@ namespace RpCalculator.Core;
 /// </summary>
 public static class ParallelRpProcessor
 {
+    /// <summary>每个 worker 每处理多少个识别码后向共享进度计数累加一次。</summary>
+    private const int ProgressFlushInterval = 256;
+
     public static Task<RpProcessingResult> ProcessAsync(
         IEnumerable<string> ids,
         DateRangeInfo dateRange,
@@ -114,8 +117,8 @@ public static class ParallelRpProcessor
                 Parallel.ForEach(
                     batch,
                     parallelOptions,
-                    () => new LocalBest(k, mode),
-                    (id, _, local) =>
+                    () => new WorkerState(k, mode),
+                    (id, _, worker) =>
                     {
                         // 快速取消检查。ParallelOptions 也会在协作点抛出 OCE。
                         cancellationToken.ThrowIfCancellationRequested();
@@ -127,19 +130,15 @@ public static class ParallelRpProcessor
                         var current = idNormalizer is null ? id : idNormalizer(id);
                         if (current is null)
                         {
-                            Interlocked.Increment(ref processedCount);
-                            Interlocked.Increment(ref invalidCount);
-                            TryReportProgress(progressClock, ref lastProgressReportMs, processedCount, invalidCount, totalCount, store, progress);
-                            return local;
+                            worker.Invalid++;
                         }
-
-                        if (mode == ScanMode.MaxGap)
+                        else if (mode == ScanMode.MaxGap)
                         {
                             var scan = RpScanner.ScanCore(current, dateRange);
                             // 指标 0 表示不足 2 个 100 分日期，无效，不进入局部 Top-K。
                             if (scan.MaxGap > 0)
                             {
-                                local.TryAdd(new LocalEntry(current, scan.MaxGap, scan.HundredCount, -1, default));
+                                worker.Best.TryAdd(new LocalEntry(current, scan.MaxGap, scan.HundredCount, -1, default));
                             }
                         }
                         else
@@ -148,17 +147,25 @@ public static class ParallelRpProcessor
                             // 早停：找到第一个 100 分立即返回，无 100 分则 Found=false，无效。
                             if (scan.Found)
                             {
-                                local.TryAdd(new LocalEntry(current, scan.DateIndex, 1, scan.DateIndex, scan.Date));
+                                worker.Best.TryAdd(new LocalEntry(current, scan.DateIndex, 1, scan.DateIndex, scan.Date));
                             }
                         }
 
-                        Interlocked.Increment(ref processedCount);
-                        TryReportProgress(progressClock, ref lastProgressReportMs, processedCount, invalidCount, totalCount, store, progress);
-                        return local;
+                        worker.Processed++;
+
+                        // 用线程本地计数，每 256 个识别码才向共享计数累加一次，
+                        // 避免高核心数下每个识别码都 Interlocked 争抢同一缓存行。
+                        if ((worker.Processed & (ProgressFlushInterval - 1)) == 0)
+                        {
+                            FlushWorkerProgress(worker, ref processedCount, ref invalidCount, progressClock, ref lastProgressReportMs, totalCount, store, progress);
+                        }
+
+                        return worker;
                     },
-                    local =>
+                    worker =>
                     {
-                        TryMergeLocalBest(local, dateRange, store);
+                        FlushWorkerProgress(worker, ref processedCount, ref invalidCount, progressClock, ref lastProgressReportMs, totalCount, store, progress);
+                        TryMergeLocalBest(worker.Best, dateRange, store);
                     });
 
                 progress?.Report(CreateProgress(processedCount, invalidCount, totalCount, store));
@@ -182,6 +189,34 @@ public static class ParallelRpProcessor
             IsCancelled = isCancelled,
             Elapsed = stopwatch.Elapsed
         };
+    }
+
+    /// <summary>把 worker 本地计数累加到共享计数，并尝试按 200ms 节流上报进度。</summary>
+    private static void FlushWorkerProgress(
+        WorkerState worker,
+        ref long processedCount,
+        ref long invalidCount,
+        Stopwatch progressClock,
+        ref long lastReportMs,
+        long? totalCount,
+        TopKResultStore store,
+        IProgress<RpProgressInfo>? progress)
+    {
+        var processedDelta = worker.Processed - worker.FlushedProcessed;
+        var invalidDelta = worker.Invalid - worker.FlushedInvalid;
+        if (processedDelta > 0)
+        {
+            Interlocked.Add(ref processedCount, processedDelta);
+            worker.FlushedProcessed = worker.Processed;
+        }
+
+        if (invalidDelta > 0)
+        {
+            Interlocked.Add(ref invalidCount, invalidDelta);
+            worker.FlushedInvalid = worker.Invalid;
+        }
+
+        TryReportProgress(progressClock, ref lastReportMs, processedCount, invalidCount, totalCount, store, progress);
     }
 
     /// <summary>
@@ -298,6 +333,25 @@ public static class ParallelRpProcessor
             CurrentBestHundredCount = best?.HundredCount ?? 0,
             IsFinal = isFinal
         };
+    }
+
+    /// <summary>每个 worker 的本地状态：局部 Top-K + 本地计数，减少共享 Interlocked。</summary>
+    private sealed class WorkerState
+    {
+        public LocalBest Best { get; }
+
+        public long Processed;
+
+        public long Invalid;
+
+        public long FlushedProcessed;
+
+        public long FlushedInvalid;
+
+        public WorkerState(int k, ScanMode mode)
+        {
+            Best = new LocalBest(k, mode);
+        }
     }
 
     /// <summary>
