@@ -131,7 +131,7 @@ publish.cmd
 
 ### GitHub Actions 自动发布
 
-推送 `v*` 或 `r*` 开头的 tag 会触发 `.github/workflows/build-release.yml`，自动完成：
+推送 `v*` 开头的 tag（例如 `v1.0.5`）会触发 `.github/workflows/build-release.yml`，自动完成：
 
 1. 还原依赖
 2. Release 构建
